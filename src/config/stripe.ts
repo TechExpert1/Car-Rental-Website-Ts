@@ -79,11 +79,11 @@ export const createSession = async (req: AuthRequest, res: Response) => {
 // Stripe Webhook
 // ========================
 export const webhook = async (req: Request, res: Response) => {
+  console.log("entered in webhook ::::::::::");
   const sig = req.headers["stripe-signature"] as string | undefined;
   const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET as string;
 
   let event: Stripe.Event;
-  console.log("entered in webhook ::::::::::");
   try {
     event = stripe.webhooks.constructEvent(req.body, sig!, endpointSecret);
   } catch (err: any) {
