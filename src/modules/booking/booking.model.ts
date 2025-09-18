@@ -2,6 +2,7 @@ import mongoose, { Document, Schema, Model } from "mongoose";
 
 // Interface for TypeScript
 export interface IBooking extends Document {
+  _id: mongoose.Types.ObjectId;
   user: mongoose.Types.ObjectId;
   vehicle: mongoose.Types.ObjectId;
   paymentIntentId?: string;
