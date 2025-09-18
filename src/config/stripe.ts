@@ -80,6 +80,7 @@ export const createSession = async (req: AuthRequest, res: Response) => {
 // ========================
 export const webhook = async (req: Request, res: Response) => {
   console.log("entered in webhook ::::::::::");
+  console.log(process.env.STRIPE_WEBHOOK_SECRET);
   const sig = req.headers["stripe-signature"] as string | undefined;
   const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET as string;
 
