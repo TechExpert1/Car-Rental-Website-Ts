@@ -90,11 +90,11 @@ export const webhook = async (req: Request, res: Response) => {
     console.error("Webhook signature verification failed.", err.message);
     return res.status(400).send(`Webhook Error: ${err.message}`);
   }
-
+  console.log("Check 2::::::::::");
   if (event.type === "checkout.session.completed") {
     const session = event.data.object as Stripe.Checkout.Session;
     const bookingId = session.metadata?.bookingId;
-
+    console.log("bookingId ::::::: ", bookingId);
     try {
       const paymentIntent = await stripe.paymentIntents.retrieve(
         session.payment_intent as string
