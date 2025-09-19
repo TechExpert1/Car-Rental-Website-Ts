@@ -2,6 +2,7 @@ import bcrypt from "bcryptjs";
 import User, { IUser } from "../auth/auth.model";
 import { Request } from "express";
 import AuthRequest from "../../middlewares/userAuth";
+import Booking from "../booking/booking.model";
 
 export const handleUpdateProfile = async (req: AuthRequest) => {
   try {
@@ -42,6 +43,35 @@ export const handleGetProfile = async (req: Request) => {
     return { user };
   } catch (error) {
     console.error("Get User Error:", error);
+    throw error;
+  }
+};
+
+export const handleGetBookings = async (req: Request) => {
+  try {
+    const { id } = req.params as { id: string };
+    const role = (req.query.role as string) || "customer";
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 10;
+    const skip = (page - 1) * limit;
+
+    const condition = role === "host" ? { host: id } : { user: id };
+    const total = await Booking.countDocuments(condition);
+    const data = await Booking.find(condition)
+      .skip(skip)
+      .limit(limit)
+      .sort({ createdAt: -1 });
+
+    return {
+      data,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
+  } catch (error) {
     throw error;
   }
 };

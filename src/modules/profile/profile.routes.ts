@@ -1,9 +1,10 @@
 import express from "express";
-import { updateProfile, getProfile } from "./profile.controller";
+import { updateProfile, getProfile, getBookings } from "./profile.controller";
 import { userAuth } from "../../middlewares/index";
 const router = express.Router();
 
 router.patch("/:id", userAuth, updateProfile);
+router.get("/:id/get-bookings", getBookings);
 router.get("/:id", getProfile);
 
 export default router;
