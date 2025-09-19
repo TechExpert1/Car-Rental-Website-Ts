@@ -1,6 +1,7 @@
 import { Request } from "express";
 import Vehicle, { IVehicle } from "./vehicle.model";
 import AuthRequest from "../../middlewares/userAuth";
+import Review from "../review/review.model";
 export const handleCreateVehicle = async (req: AuthRequest) => {
   try {
     if (!req.user?.id)
@@ -86,6 +87,17 @@ export const handleUpdateVehicle = async (req: AuthRequest) => {
     );
     if (!vehicle) throw new Error("Vehicle not found");
     return { message: "Vehicle updated successfully", vehicle };
+  } catch (error) {
+    console.error("Update Vehicle Error:", error);
+    throw error;
+  }
+};
+
+export const handleVehicleReviews = async (req: Request) => {
+  try {
+    const { id } = req.params;
+    const reviews = await Review.find({ vehicle: id }).populate("user");
+    return { reviews };
   } catch (error) {
     console.error("Update Vehicle Error:", error);
     throw error;

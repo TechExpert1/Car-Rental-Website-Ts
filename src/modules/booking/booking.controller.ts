@@ -1,5 +1,9 @@
 import { Request, Response } from "express";
-import { handleUpdateBooking, handleGetAllBooking } from "./booking.service";
+import {
+  handleUpdateBooking,
+  handleCancelBooking,
+  handleGetAllBooking,
+} from "./booking.service";
 
 export const updateBooking = async (
   req: Request,
@@ -7,6 +11,18 @@ export const updateBooking = async (
 ): Promise<void> => {
   try {
     const result = await handleUpdateBooking(req);
+    res.status(200).json(result);
+  } catch (err: any) {
+    res.status(422).json({ error: err.message });
+  }
+};
+
+export const cancelBooking = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const result = await handleCancelBooking(req);
     res.status(200).json(result);
   } catch (err: any) {
     res.status(422).json({ error: err.message });

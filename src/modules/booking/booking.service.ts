@@ -1,6 +1,6 @@
 import { Request } from "express";
 import Booking, { IBooking } from "./booking.model";
-
+import { refundPayment } from "../../utils/booking";
 export const handleUpdateBooking = async (req: Request) => {
   try {
     const { id } = req.params;
@@ -13,6 +13,28 @@ export const handleUpdateBooking = async (req: Request) => {
     if (!booking) throw new Error("Booking not found");
 
     return { message: "Booking updated successfully", booking };
+  } catch (error) {
+    console.error("Update Booking Error:", error);
+    throw error;
+  }
+};
+
+export const handleCancelBooking = async (req: Request) => {
+  try {
+    const { id } = req.params;
+    const booking = await Booking.findById(id);
+    if (!booking) throw new Error("Booking not found");
+    console.log(booking.paymentIntentId);
+    if (!booking.paymentIntentId)
+      throw new Error("Payment intent id is missing from booking ");
+    await refundPayment(booking.paymentIntentId);
+    const update = await Booking.findByIdAndUpdate(
+      id,
+      { status: "Cancelled" },
+      { new: true }
+    );
+
+    return { message: "Booking updated successfully", update };
   } catch (error) {
     console.error("Update Booking Error:", error);
     throw error;

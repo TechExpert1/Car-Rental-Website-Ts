@@ -11,12 +11,15 @@ export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string);
 // ========================
 export const createSession = async (req: AuthRequest, res: Response) => {
   try {
-    const { vehicle, pickupDate, dropoffDate, totalAmount } = req.body as {
-      vehicle: string;
-      pickupDate: string;
-      dropoffDate: string;
-      totalAmount: number;
-    };
+    const { vehicle, pickupDate, totalDays, dropoffDate, host, totalAmount } =
+      req.body as {
+        vehicle: string;
+        pickupDate: string;
+        dropoffDate: string;
+        totalAmount: number;
+        totalDays: number;
+        host: string;
+      };
 
     // 1. Get vehicle info
     const vehicleDoc = await Vehicle.findById(vehicle).lean<
@@ -29,7 +32,9 @@ export const createSession = async (req: AuthRequest, res: Response) => {
     // 2. Create booking in DB
     const booking = await Booking.create({
       user: req.user?.id,
+      host,
       vehicle,
+      totalDays,
       pickupDate,
       dropoffDate,
       totalAmount,

@@ -4,11 +4,13 @@ import mongoose, { Document, Schema, Model } from "mongoose";
 export interface IBooking extends Document {
   _id: mongoose.Types.ObjectId;
   user: mongoose.Types.ObjectId;
+  host: mongoose.Types.ObjectId;
   vehicle: mongoose.Types.ObjectId;
   paymentIntentId?: string;
   paymentStatus: "pending" | "succeeded" | "failed";
   bookingStatus: "in-progress" | "completed" | "canceled";
   totalAmount: number;
+  totalDays: number;
   pickupDate: Date;
   dropoffDate: Date;
   createdAt: Date;
@@ -19,6 +21,7 @@ export interface IBooking extends Document {
 const bookingSchema: Schema<IBooking> = new Schema<IBooking>(
   {
     user: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+    host: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
     vehicle: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Vehicle",
@@ -36,6 +39,7 @@ const bookingSchema: Schema<IBooking> = new Schema<IBooking>(
       default: "in-progress",
     },
     totalAmount: { type: Number, required: true },
+    totalDays: { type: Number, required: true },
     pickupDate: { type: Date, required: true },
     dropoffDate: { type: Date, required: true },
   },

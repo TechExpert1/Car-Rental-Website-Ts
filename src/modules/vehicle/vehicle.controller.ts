@@ -5,6 +5,7 @@ import {
   handleGetVehicleById,
   handleUpdateVehicle,
   handleDeleteVehicle,
+  handleVehicleReviews,
 } from "./vehicle.service";
 
 export const createVehicle = async (
@@ -37,6 +38,18 @@ export const getVehicleById = async (
 ): Promise<void> => {
   try {
     const result = await handleGetVehicleById(req);
+    res.status(200).json(result);
+  } catch (err: any) {
+    res.status(404).json({ error: err.message });
+  }
+};
+
+export const getVehicleReviews = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const result = await handleVehicleReviews(req);
     res.status(200).json(result);
   } catch (err: any) {
     res.status(404).json({ error: err.message });
