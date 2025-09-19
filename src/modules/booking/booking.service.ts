@@ -30,7 +30,7 @@ export const handleCancelBooking = async (req: Request) => {
     await refundPayment(booking.paymentIntentId);
     const update = await Booking.findByIdAndUpdate(
       id,
-      { status: "canceled" },
+      { bookingStatus: "canceled", paymentStatus: "refunded" },
       { new: true }
     );
 
