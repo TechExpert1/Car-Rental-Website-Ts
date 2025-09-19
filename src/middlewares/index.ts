@@ -1,2 +1,3 @@
 import { userAuth } from "./userAuth";
-export { userAuth };
+import { hostAuth } from "./hostAuth";
+export { userAuth, hostAuth };

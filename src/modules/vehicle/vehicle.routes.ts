@@ -7,14 +7,14 @@ import {
   deleteVehicle,
   getVehicleReviews,
 } from "./vehicle.controller";
-import { userAuth } from "../../middlewares";
+import { hostAuth } from "../../middlewares";
 const router = express.Router();
 
-router.post("/", userAuth, createVehicle);
+router.post("/", hostAuth, createVehicle);
 router.get("/", getAllVehicles);
 router.get("/:id", getVehicleById);
 router.get("/:id/reviews", getVehicleReviews);
-router.patch("/:id", userAuth, updateVehicle);
-router.delete("/:id", userAuth, deleteVehicle);
+router.patch("/:id", hostAuth, updateVehicle);
+router.delete("/:id", hostAuth, deleteVehicle);
 
 export default router;

@@ -1,20 +1,8 @@
 import { Request, Response, NextFunction } from "express";
-import jwt, { JwtPayload } from "jsonwebtoken";
+import jwt from "jsonwebtoken";
+import AuthRequest, { UserPayload } from "./userAuth";
 
-// Define a custom type for user payload
-export interface UserPayload {
-  id: string;
-  username: string;
-  email: string;
-  role: string;
-}
-
-// Extend Express Request to include `user`
-export default interface AuthRequest extends Request {
-  user?: UserPayload;
-}
-
-export const userAuth = (
+export const hostAuth = (
   req: AuthRequest,
   res: Response,
   next: NextFunction
@@ -29,9 +17,14 @@ export const userAuth = (
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET as string);
 
-    // Make sure decoded is an object
     if (typeof decoded === "object" && decoded !== null) {
       const { id, username, email, role } = decoded as UserPayload;
+
+      if (role !== "host") {
+        res.status(403).json({ message: "Forbidden: Only hosts can access" });
+        return;
+      }
+
       req.user = { id, username, email, role };
       next();
     } else {
