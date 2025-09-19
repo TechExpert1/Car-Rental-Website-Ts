@@ -35,7 +35,7 @@ const bookingSchema: Schema<IBooking> = new Schema<IBooking>(
     },
     bookingStatus: {
       type: String,
-      enum: ["in-progress", "completed", "canceled"],
+      enum: ["in-progress", "active", "completed", "canceled"],
       default: "in-progress",
     },
     totalAmount: { type: Number, required: true },

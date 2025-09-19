@@ -110,7 +110,7 @@ export const webhook = async (req: Request, res: Response) => {
       await Booking.findByIdAndUpdate(bookingId, {
         paymentIntentId: paymentIntent.id,
         paymentStatus: "succeeded",
-        bookingStatus: "completed",
+        bookingStatus: "active",
       });
     } catch (err: any) {
       console.error("Booking update error:", err.message);
