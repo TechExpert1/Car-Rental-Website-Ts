@@ -22,7 +22,11 @@ export interface IVehicle extends Document {
     break?: number;
     airBags?: number;
     cruiseControl?: boolean;
-    location?: string;
+    location: {
+      type: "Point";
+      coordinates: [number, number];
+      address?: string;
+    };
   };
 
   status: "active" | "de-activated";
@@ -53,9 +57,19 @@ const vehicleSchema: Schema<IVehicle> = new Schema<IVehicle>(
       break: { type: Number },
       airBags: { type: Number },
       cruiseControl: { type: Boolean },
-      location: { type: String },
+      location: {
+        type: {
+          type: String,
+          enum: ["Point"],
+          default: "Point",
+        },
+        coordinates: {
+          type: [Number],
+          required: true,
+        },
+        address: { type: String },
+      },
     },
-
     status: {
       type: String,
       enum: ["active", "de-activated"],
