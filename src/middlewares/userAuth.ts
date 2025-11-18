@@ -21,6 +21,7 @@ export const userAuth = (
 ): void => {
   try {
     const token = req.headers.token as string;
+    //console.log("token :::::", token);
 
     if (!token) {
       res.status(401).json({ message: "Unauthorized: No token provided" });

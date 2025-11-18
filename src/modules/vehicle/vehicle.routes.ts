@@ -17,4 +17,5 @@ router.get("/:id/reviews", getVehicleReviews);
 router.patch("/:id", hostAuth, updateVehicle);
 router.delete("/:id", hostAuth, deleteVehicle);
 
+
 export default router;

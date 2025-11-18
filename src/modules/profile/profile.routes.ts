@@ -3,8 +3,8 @@ import { updateProfile, getProfile, getBookings } from "./profile.controller";
 import { userAuth } from "../../middlewares/index";
 const router = express.Router();
 
-router.patch("/:id", userAuth, updateProfile);
-router.get("/:id/get-bookings", getBookings);
-router.get("/:id", getProfile);
+router.patch("/", userAuth, updateProfile);
+router.get("/bookings", userAuth, getBookings);
+router.get("/", userAuth, getProfile);
 
 export default router;

@@ -8,6 +8,7 @@ export interface IVehicle extends Document {
   type?: string;
   images?: string[];
   rent: number;
+  security: number;
 
   technicalSpecifications?: {
     gearBox?: string;

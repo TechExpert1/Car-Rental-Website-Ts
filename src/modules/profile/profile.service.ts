@@ -1,19 +1,18 @@
 import bcrypt from "bcryptjs";
 import User, { IUser } from "../auth/auth.model";
-import { Request } from "express";
 import AuthRequest from "../../middlewares/userAuth";
 import Booking from "../booking/booking.model";
 
 export const handleUpdateProfile = async (req: AuthRequest) => {
   try {
-    const { id } = req.params as { id: string };
+    const userId = req.user?.id;
+
+    if (!userId) throw new Error("User ID not found in token");
+
     const { currentPassword, newPassword, ...updateData } = req.body;
-    const user = (await User.findById(id)) as IUser | null;
+    const user = (await User.findById(userId)) as IUser | null;
 
     if (!user) throw new Error("User not found");
-
-    if (req.user?.id !== String(user._id))
-      throw new Error("Unauthorized to update this profile");
 
     if (currentPassword && newPassword) {
       const isMatch = await bcrypt.compare(currentPassword, user.password);
@@ -33,10 +32,13 @@ export const handleUpdateProfile = async (req: AuthRequest) => {
   }
 };
 
-export const handleGetProfile = async (req: Request) => {
+export const handleGetProfile = async (req: AuthRequest) => {
   try {
-    const { id } = req.params as { id: string };
-    const user = (await User.findById(id)) as IUser | null;
+    const userId = req.user?.id;
+
+    if (!userId) throw new Error("User ID not found in token");
+
+    const user = (await User.findById(userId)) as IUser | null;
 
     if (!user) throw new Error("User not found");
 
@@ -47,15 +49,18 @@ export const handleGetProfile = async (req: Request) => {
   }
 };
 
-export const handleGetBookings = async (req: Request) => {
+export const handleGetBookings = async (req: AuthRequest) => {
   try {
-    const { id } = req.params as { id: string };
+    const userId = req.user?.id;
+
+    if (!userId) throw new Error("User ID not found in token");
+
     const role = (req.query.role as string) || "customer";
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 10;
     const skip = (page - 1) * limit;
 
-    const condition = role === "host" ? { host: id } : { user: id };
+    const condition = role === "host" ? { host: userId } : { user: userId };
     const total = await Booking.countDocuments(condition);
     const data = await Booking.find(condition)
       .skip(skip)
@@ -75,3 +80,5 @@ export const handleGetBookings = async (req: Request) => {
     throw error;
   }
 };
+
+
