@@ -15,6 +15,6 @@ router.get("/monthly-stats", hostAuth, getUserYearlyStats);
 router.post("/", userAuth, createSession);
 router.get("/", getAllBooking);
 router.patch("/:id", updateBooking);
-router.get("/cancel/:id", cancelBooking);
+router.post("/cancel/:id", userAuth, cancelBooking); // Changed to POST and added userAuth
 
 export default router;

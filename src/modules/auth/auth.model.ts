@@ -22,6 +22,7 @@ export interface IUser extends Document {
   totalCancellations?: number;
   totalCompletedTrips?: number;
   isFeaturedHost?: boolean;
+  pendingPenaltyAmount?: number; // Amount to be deducted from next payout
 
   // Guest-specific fields
   averageGuestRating?: number;
@@ -59,6 +60,7 @@ const userSchema: Schema<IUser> = new Schema<IUser>(
     totalCancellations: { type: Number, default: 0 },
     totalCompletedTrips: { type: Number, default: 0 },
     isFeaturedHost: { type: Boolean, default: false },
+    pendingPenaltyAmount: { type: Number, default: 0 },
 
     // Guest-specific fields
     averageGuestRating: { type: Number, default: 0 },

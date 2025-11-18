@@ -7,12 +7,23 @@ export interface IBooking extends Document {
   host: mongoose.Types.ObjectId;
   vehicle: mongoose.Types.ObjectId;
   paymentIntentId?: string;
-  paymentStatus: "pending" | "succeeded" | "failed";
+  paymentStatus: "pending" | "succeeded" | "failed" | "refunded" | "partially_refunded";
   bookingStatus: "in-progress" | "completed" | "canceled";
   totalAmount: number;
   totalDays: number;
   pickupDate: Date;
   dropoffDate: Date;
+
+  // Cancellation fields
+  canceledBy?: "user" | "host" | "admin";
+  canceledAt?: Date;
+  cancellationReason?: string;
+  refundAmount?: number;
+  refundPercentage?: number;
+  hostPayoutAmount?: number;
+  platformFeeAmount?: number;
+  refundProcessedAt?: Date;
+
   createdAt: Date;
   updatedAt: Date;
 }
@@ -30,7 +41,7 @@ const bookingSchema: Schema<IBooking> = new Schema<IBooking>(
     paymentIntentId: { type: String },
     paymentStatus: {
       type: String,
-      enum: ["pending", "succeeded", "failed", "refunded"],
+      enum: ["pending", "succeeded", "failed", "refunded", "partially_refunded"],
       default: "pending",
     },
     bookingStatus: {
@@ -42,6 +53,19 @@ const bookingSchema: Schema<IBooking> = new Schema<IBooking>(
     totalDays: { type: Number, required: true },
     pickupDate: { type: Date, required: true },
     dropoffDate: { type: Date, required: true },
+
+    // Cancellation fields
+    canceledBy: {
+      type: String,
+      enum: ["user", "host", "admin"]
+    },
+    canceledAt: { type: Date },
+    cancellationReason: { type: String },
+    refundAmount: { type: Number },
+    refundPercentage: { type: Number },
+    hostPayoutAmount: { type: Number },
+    platformFeeAmount: { type: Number },
+    refundProcessedAt: { type: Date },
   },
   { timestamps: true }
 );

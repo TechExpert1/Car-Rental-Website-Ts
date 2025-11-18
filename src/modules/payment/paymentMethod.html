@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stripe Payment</title>
+    <script src="https://js.stripe.com/v3/"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 500px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        #card-element {
+            border: 1px solid #ccc;
+            padding: 12px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+        button {
+            background-color: #5469d4;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            width: 100%;
+        }
+        button:hover {
+            background-color: #4051b5;
+        }
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        #error-message {
+            color: #e74c3c;
+            margin-top: 10px;
+        }
+        #success-message {
+            color: #27ae60;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h2>Complete Your Booking</h2>
+    <form id="payment-form">
+        <div id="card-element"><!-- Stripe.js injects the Card Element --></div>
+        <button id="submit">Submit Payment</button>
+        <div id="error-message"></div>
+        <div id="success-message"></div>
+    </form>
+    <script>
+        const stripe = Stripe('pk_test_51Rfnde2XCV0AWrFEKl3Je6t6ekLrt4bXu9xCyloMXYycqpWtq67Adl8ZXKIClVVrt4xIkk0c0B02TGKtOmNz6u8b00lT08zoXc');
+        const elements = stripe.elements();
+        const cardElement = elements.create('card');
+        cardElement.mount('#card-element');
+
+        const form = document.getElementById('payment-form');
+        const submitButton = document.getElementById('submit');
+        const errorDiv = document.getElementById('error-message');
+        const successDiv = document.getElementById('success-message');
+
+        form.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            
+            // Clear previous messages
+            errorDiv.textContent = '';
+            successDiv.textContent = '';
+            submitButton.disabled = true;
+            submitButton.textContent = 'Processing...';
+
+            try {
+                // Create payment method
+                const { paymentMethod, error } = await stripe.createPaymentMethod({
+                    type: 'card',
+                    card: cardElement,
+                });
+
+                if (error) {
+                    throw new Error(error.message);
+                }
+
+                console.log("Payment Method Created:", paymentMethod);
+
+                // Send payment method to your server
+                const response = await fetch('http://localhost:9716/booking/create', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2OGNjZjFiNzYyOTA5YmEyYjUyOGU5YjgiLCJlbWFpbCI6InBldHNpZGVAeW9wbWFpbC5jb20iLCJ1c2VyTmFtZSI6IklzaHJhdCIsInVzZXJUeXBlIjoidXNlciIsImlhdCI6MTc1OTI0MDMzOSwiZXhwIjoxNzYxODMyMzM5fQ.k1C_EHO7Erk5N3HsT6rwyfcC82rkQU0ZohtdvbdvOHo`
+                    },
+                    body: JSON.stringify({
+                    "veterniaId": "68ca8383f4ab48f3a17a2990",  // ObjectId of the vet (string format)
+                    "petId": "68ccf2ae62909ba2b528e9c9",      // ObjectId of the pet (string format)
+                    "date": "2025-10-01",                     // Date of the booking
+                    "startTime": "16:00",                      // Start time (HH:mm)
+                    "endTime": "16:15",                         // End time (HH:mm)
+                    "paymentMethodId" : paymentMethod.id
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error('Server error: ' + response.status);
+                }
+
+                const result = await response.json();
+                console.log('Server Response:', result);
+
+                // FIXED: Get clientSecret directly (it's already a string)
+                const clientSecret = result.paymentIntent.clientSecret;
+
+                // Confirm the payment on the frontend
+                const { paymentIntent, error: confirmError } = await stripe.confirmCardPayment(clientSecret, {
+                    payment_method: paymentMethod.id,
+                });
+
+                if (confirmError) {
+                    throw new Error('Payment confirmation failed: ' + confirmError.message);
+                }
+
+                if (paymentIntent.status === 'succeeded') {
+                    console.log('Payment successful!');
+                    successDiv.textContent = '✓ Payment successful! Your booking is confirmed.';
+                    form.reset();
+                }
+
+            } catch (error) {
+                console.error('Error:', error);
+                errorDiv.textContent = error.message;
+            } finally {
+                submitButton.disabled = false;
+                submitButton.textContent = 'Submit Payment';
+            }
+        });
+    </script>
+</body>
+</html>
