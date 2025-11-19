@@ -24,6 +24,12 @@ export interface IBooking extends Document {
   platformFeeAmount?: number;
   refundProcessedAt?: Date;
 
+  // Host payout scheduling fields
+  scheduledPayoutDate?: Date;
+  payoutStatus?: "pending" | "processing" | "completed" | "failed";
+  payoutProcessedAt?: Date;
+  payoutTransferId?: string;
+
   createdAt: Date;
   updatedAt: Date;
 }
@@ -66,6 +72,16 @@ const bookingSchema: Schema<IBooking> = new Schema<IBooking>(
     hostPayoutAmount: { type: Number },
     platformFeeAmount: { type: Number },
     refundProcessedAt: { type: Date },
+
+    // Host payout scheduling fields
+    scheduledPayoutDate: { type: Date },
+    payoutStatus: {
+      type: String,
+      enum: ["pending", "processing", "completed", "failed"],
+      default: "pending"
+    },
+    payoutProcessedAt: { type: Date },
+    payoutTransferId: { type: String },
   },
   { timestamps: true }
 );

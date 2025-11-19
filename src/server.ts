@@ -12,6 +12,9 @@ import paymentRoutes from "./modules/payment/payment.routes";
 import ratingRoutes from "./modules/rating/rating.routes";
 import cors from "cors";
 import { webhook } from "./config/stripe";
+import cron from "node-cron";
+import { processPendingPayouts } from "./services/scheduledPayout.service";
+
 const app = express();
 app.use(cors());
 
@@ -44,5 +47,23 @@ app.use("/payment", paymentRoutes);
 //app.use("/admin", adminRoutes);
 //app.use("/disputes", disputeRoutes);
 app.use("/ratings", ratingRoutes);
+
+// ========================
+// Initialize Cron Job for Scheduled Payouts
+// ========================
+// Run every hour to check for pending payouts
+// Cron format: "minute hour day month day-of-week"
+// "0 * * * *" means: at minute 0 of every hour
+cron.schedule("0 * * * *", async () => {
+  console.log("🔄 Running scheduled payout cron job...");
+  try {
+    await processPendingPayouts();
+  } catch (error: any) {
+    console.error("❌ Error in scheduled payout cron job:", error.message);
+  }
+});
+
+console.log("✅ Scheduled payout cron job initialized (runs every hour)");
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));

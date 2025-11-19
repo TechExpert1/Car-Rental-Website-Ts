@@ -5,6 +5,7 @@ import {
   getAllBooking,
   getUserBookingStats,
   getUserYearlyStats,
+  confirmBooking,
 } from "./booking.controller";
 import { createSession } from "../../config/stripe";
 import { userAuth, hostAuth } from "../../middlewares";
@@ -15,6 +16,7 @@ router.get("/monthly-stats", hostAuth, getUserYearlyStats);
 router.post("/", userAuth, createSession);
 router.get("/", getAllBooking);
 router.patch("/:id", updateBooking);
-router.post("/cancel/:id", userAuth, cancelBooking); // Changed to POST and added userAuth
+router.post("/cancel/:id", userAuth, cancelBooking);
+router.post("/confirm", confirmBooking); // Confirm booking and schedule payout
 
 export default router;

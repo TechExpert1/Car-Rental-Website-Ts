@@ -11,6 +11,7 @@ import User from "../auth/auth.model";
 import { stripe } from "../../config/stripe";
 import { refundPayment } from "../../utils/booking";
 import AuthRequest from "../../middlewares/userAuth";
+import { calculatePayoutDate } from "../../services/scheduledPayout.service";
 //import { calculateSecurityDeposit } from "../../services/securityDeposit.service";
 
 export const updateBooking = async (
@@ -555,18 +556,28 @@ export const confirmBooking = async (
       return;
     }
 
-    // Update booking status to completed
+    // Calculate scheduled payout date (5 days from now by default)
+    const now = new Date();
+    const scheduledPayoutDate = calculatePayoutDate(now);
+
+    // Update booking status to completed and schedule payout
     booking.bookingStatus = "completed";
+    booking.scheduledPayoutDate = scheduledPayoutDate;
+    booking.payoutStatus = "pending";
     await booking.save();
+
+    console.log(`✅ Booking ${bookingId} confirmed. Payout scheduled for ${scheduledPayoutDate.toISOString()}`);
 
     res.status(200).json({
       success: true,
-      message: "Booking confirmed successfully",
+      message: "Booking confirmed successfully. Host payout scheduled.",
       booking: {
         id: booking._id,
         bookingStatus: booking.bookingStatus,
         paymentStatus: booking.paymentStatus,
         totalAmount: booking.totalAmount,
+        scheduledPayoutDate: scheduledPayoutDate,
+        payoutStatus: booking.payoutStatus,
       },
     });
   } catch (err: any) {
