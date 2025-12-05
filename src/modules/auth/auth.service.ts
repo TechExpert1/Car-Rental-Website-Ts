@@ -6,16 +6,19 @@ import User, { IUser } from "./auth.model";
 // Signup
 export const handleSignup = async (req: Request): Promise<{ user: IUser }> => {
   try {
-    const { username, email, password, role } = req.body;
+    const { username, email, password, confirmPassword, role } = req.body;
 
-    const existingUser = await User.findOne({ email });
-    if (existingUser) throw new Error("User already exists");
+    const existingUser = await User.findOne({ email:email.toLowerCase() });
+    if (existingUser) throw new Error("Email already exists");
+
+    if (password !== confirmPassword)
+      throw new Error("Passwords do not match");
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const user = await User.create({
       username,
-      email,
+      email:email.toLowerCase(),
       password: hashedPassword,
       role,
     });
