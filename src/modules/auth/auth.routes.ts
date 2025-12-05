@@ -3,7 +3,7 @@ import { login, signup } from "./auth.controller";
 import { validateUser } from "./auth.validation";
 const router = express.Router();
 
-router.post("/sign-up", validateUser, signup);
+router.post("/sign-up", signup);
 router.post("/login", login);
 
 export default router;

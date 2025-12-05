@@ -3,6 +3,7 @@ import { handleSignup, handleLogin } from "./auth.service";
 
 export const signup = async (req: Request, res: Response): Promise<void> => {
   try {
+    console.log("signup controller");
     const result = await handleSignup(req);
     res.status(201).json(result);
   } catch (err: any) {
