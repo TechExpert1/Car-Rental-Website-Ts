@@ -6,7 +6,7 @@ export interface IUser extends Document {
   username: string;
   name?: string;
   password: string;
-  image?: string;
+  image: string;
   resetOTP?: string;
   otpExpiry?: Date;
   role: "customer" | "host" | "admin";
@@ -39,7 +39,7 @@ const userSchema: Schema<IUser> = new Schema<IUser>(
     username: { type: String, required: true, unique: true },
     name: { type: String },
     password: { type: String, required: true },
-    image: { type: String },
+    image: { type: String , default: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcS2TgOv9CMmsUzYKCcLGWPvqcpUk6HXp2mnww&s" },
     resetOTP: { type: String },
     otpExpiry: { type: Date },
     connected_acc_id: { type: String, default: "none" },

@@ -13,6 +13,7 @@ export const updateProfile = async (
     const result = await handleUpdateProfile(req);
     res.status(201).json(result);
   } catch (err: any) {
+    console.log("updateProfile error:", err);
     res.status(422).json({ error: err.message });
   }
 };

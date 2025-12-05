@@ -9,8 +9,13 @@ export const handleUpdateProfile = async (req: AuthRequest) => {
 
     if (!userId) throw new Error("User ID not found in token");
 
-    const { currentPassword, newPassword, ...updateData } = req.body;
+    const { currentPassword, newPassword, ...updateData } = req.body || {};
     const user = (await User.findById(userId)) as IUser | null;
+
+    // Handle profile image upload
+    if (req.file) {
+      updateData.image = req.file.path;
+    }
 
     if (!user) throw new Error("User not found");
 

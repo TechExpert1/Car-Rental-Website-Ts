@@ -35,6 +35,7 @@ app.post(
 );
 
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 connectDB();
 app.use("/auth", authRoutes);
