@@ -4,9 +4,10 @@ import {
   handleGetProfile,
   handleGetBookings,
 } from "./profile.service";
+import AuthRequest from "../../middlewares/userAuth";
 
 export const updateProfile = async (
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> => {
   try {
@@ -19,7 +20,7 @@ export const updateProfile = async (
 };
 
 export const getProfile = async (
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> => {
   try {
@@ -31,7 +32,7 @@ export const getProfile = async (
 };
 
 export const getBookings = async (
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> => {
   try {
