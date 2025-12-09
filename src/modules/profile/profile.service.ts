@@ -12,12 +12,12 @@ export const handleUpdateProfile = async (req: AuthRequest) => {
     const { currentPassword, newPassword, ...updateData } = req.body || {};
     const user = (await User.findById(userId)) as IUser | null;
 
-    // Handle profile image upload
-    if (req.file) {
-      updateData.image = req.file.path;
-    }
-
     if (!user) throw new Error("User not found");
+
+    // Handle profile picture upload from S3
+    if (req.fileUrl) {
+      updateData.image = req.fileUrl;
+    }
 
     if (currentPassword && newPassword) {
       const isMatch = await bcrypt.compare(currentPassword, user.password);
@@ -27,8 +27,15 @@ export const handleUpdateProfile = async (req: AuthRequest) => {
       updateData.password = hashedPassword;
     }
 
+    // Remove empty or undefined fields to avoid validation errors
+    Object.keys(updateData).forEach(key => {
+      if (updateData[key] === '' || updateData[key] === undefined) {
+        delete updateData[key];
+      }
+    });
+
     Object.assign(user, updateData);
-    await user.save();
+    await user.save({ validateModifiedOnly: true });
 
     return { message: "User updated successfully", user };
   } catch (error) {
