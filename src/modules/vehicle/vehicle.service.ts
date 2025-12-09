@@ -12,6 +12,11 @@ export const handleCreateVehicle = async (req: AuthRequest) => {
       ...req.body,
     };
 
+    // Handle uploaded images from S3
+    if (req.fileUrls && req.fileUrls.images) {
+      data.images = req.fileUrls.images;
+    }
+
     const vehicle = await Vehicle.create(data);
 
     return { message: "Vehicle created successfully", vehicle };
@@ -77,9 +82,16 @@ export const handleUpdateVehicle = async (req: AuthRequest) => {
       throw new Error("Need a user Id - req.user.id is missing");
 
     const { id } = req.params;
+    const updateData = { ...req.body };
+
+    // Handle uploaded images from S3
+    if (req.fileUrls && req.fileUrls.images) {
+      updateData.images = req.fileUrls.images;
+    }
+
     const vehicle: IVehicle | null = await Vehicle.findByIdAndUpdate(
       id,
-      req.body,
+      updateData,
       {
         new: true,
         runValidators: true,
