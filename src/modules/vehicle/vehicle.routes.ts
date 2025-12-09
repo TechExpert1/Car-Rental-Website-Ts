@@ -8,13 +8,14 @@ import {
   getVehicleReviews,
 } from "./vehicle.controller";
 import { hostAuth } from "../../middlewares";
+import { newMulterUpload, uploadMultipleToS3 } from "../../middlewares/multer";
 const router = express.Router();
 
-router.post("/", hostAuth, createVehicle);
+router.post("/", hostAuth, newMulterUpload, uploadMultipleToS3, createVehicle);
 router.get("/", getAllVehicles);
 router.get("/:id", getVehicleById);
 router.get("/:id/reviews", getVehicleReviews);
-router.patch("/:id", hostAuth, updateVehicle);
+router.patch("/:id", hostAuth, newMulterUpload, uploadMultipleToS3, updateVehicle);
 router.delete("/:id", hostAuth, deleteVehicle);
 
 export default router;
