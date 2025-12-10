@@ -20,8 +20,15 @@ export const userAuth = (
   next: NextFunction
 ): void => {
   try {
-    const token = req.headers.token as string;
-    //console.log("token :::::", token);
+    // Support both 'token' header and 'Authorization: Bearer' header
+    let token = req.headers.token as string;
+    
+    if (!token) {
+      const authHeader = req.headers.authorization as string;
+      if (authHeader && authHeader.startsWith("Bearer ")) {
+        token = authHeader.slice(7); // Remove 'Bearer ' prefix
+      }
+    }
 
     if (!token) {
       res.status(401).json({ message: "Unauthorized: No token provided" });

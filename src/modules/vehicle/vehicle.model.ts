@@ -17,6 +17,7 @@ export interface IVehicle extends Document {
     seats?: number;
     airConditioner?: boolean;
     distance?: number;
+    speed?: number;
   };
 
   equipment?: {
@@ -52,6 +53,7 @@ const vehicleSchema: Schema<IVehicle> = new Schema<IVehicle>(
       seats: { type: Number },
       airConditioner: { type: Boolean },
       distance: { type: Number },
+      speed: { type: Number },
     },
 
     equipment: {

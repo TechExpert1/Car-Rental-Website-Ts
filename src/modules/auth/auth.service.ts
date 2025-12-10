@@ -31,7 +31,7 @@ export const handleSignup = async (req: Request): Promise<{ user: IUser; token: 
         role: user.role,
       },
       process.env.JWT_SECRET as string,
-      { expiresIn: "30d" }
+      { expiresIn: "90d" }
     );
 
     return { user, token: token };
@@ -62,7 +62,7 @@ export const handleLogin = async (
         role: user.role,
       },
       process.env.JWT_SECRET as string,
-      { expiresIn: "30d" }
+      { expiresIn: "90d" }
     );
 
     return { user, token };
