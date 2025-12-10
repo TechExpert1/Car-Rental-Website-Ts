@@ -21,7 +21,7 @@ export interface IVehicle extends Document {
   };
 
   equipment?: {
-    break?: number;
+    break?: string;
     airBags?: number;
     cruiseControl?: boolean;
     location: {
@@ -57,7 +57,7 @@ const vehicleSchema: Schema<IVehicle> = new Schema<IVehicle>(
     },
 
     equipment: {
-      break: { type: Number },
+      break: { type: String },
       airBags: { type: Number },
       cruiseControl: { type: Boolean },
       location: {

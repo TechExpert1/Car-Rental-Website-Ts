@@ -26,7 +26,7 @@ export const handleCreateVehicle = async (req: AuthRequest) => {
   }
 };
 
-export const handleGetAllVehicles = async (req: Request) => {
+export const handleGetAllVehicles = async (req: AuthRequest) => {
   try {
     let { page = "1", limit = "10", ...filters } = req.query;
 
@@ -34,6 +34,12 @@ export const handleGetAllVehicles = async (req: Request) => {
     const parsedLimit = parseInt(limit as string, 10);
 
     const query: Record<string, any> = {};
+    
+    // If user is authenticated, filter by their vehicles
+    if (req.user?.id) {
+      query.host = req.user.id;
+    }
+    
     Object.keys(filters).forEach((key) => {
       const value = filters[key];
       if (value) {
