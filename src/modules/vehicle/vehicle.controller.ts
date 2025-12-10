@@ -6,6 +6,8 @@ import {
   handleUpdateVehicle,
   handleDeleteVehicle,
   handleVehicleReviews,
+  handleDeactivateVehicle,
+  handleActivateVehicle,
 } from "./vehicle.service";
 
 export const createVehicle = async (
@@ -74,6 +76,30 @@ export const deleteVehicle = async (
 ): Promise<void> => {
   try {
     const result = await handleDeleteVehicle(req);
+    res.status(200).json(result);
+  } catch (err: any) {
+    res.status(422).json({ error: err.message });
+  }
+};
+
+export const deactivateVehicle = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const result = await handleDeactivateVehicle(req);
+    res.status(200).json(result);
+  } catch (err: any) {
+    res.status(422).json({ error: err.message });
+  }
+};
+
+export const activateVehicle = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const result = await handleActivateVehicle(req);
     res.status(200).json(result);
   } catch (err: any) {
     res.status(422).json({ error: err.message });

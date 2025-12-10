@@ -88,14 +88,31 @@ export const handleUpdateVehicle = async (req: AuthRequest) => {
       throw new Error("Need a user Id - req.user.id is missing");
 
     const { id } = req.params;
-    const updateData = { ...req.body };
+    const { deleteImages, ...updateData } = req.body;
 
-    // Handle uploaded images from S3
-    if (req.fileUrls && req.fileUrls.images) {
-      updateData.images = req.fileUrls.images;
+    // Fetch current vehicle
+    const vehicle: IVehicle | null = await Vehicle.findById(id);
+    if (!vehicle) throw new Error("Vehicle not found");
+
+    // Handle image deletion
+    let currentImages = vehicle.images || [];
+    if (deleteImages) {
+      const imagesToDelete = Array.isArray(deleteImages) 
+        ? deleteImages 
+        : JSON.parse(deleteImages);
+      currentImages = currentImages.filter(
+        (img) => !imagesToDelete.includes(img)
+      );
     }
 
-    const vehicle: IVehicle | null = await Vehicle.findByIdAndUpdate(
+    // Handle new image uploads from S3 - ADD to existing images
+    if (req.fileUrls && req.fileUrls.images) {
+      currentImages = [...currentImages, ...req.fileUrls.images];
+    }
+
+    updateData.images = currentImages;
+
+    const updatedVehicle: IVehicle | null = await Vehicle.findByIdAndUpdate(
       id,
       updateData,
       {
@@ -103,8 +120,8 @@ export const handleUpdateVehicle = async (req: AuthRequest) => {
         runValidators: true,
       }
     );
-    if (!vehicle) throw new Error("Vehicle not found");
-    return { message: "Vehicle updated successfully", vehicle };
+    if (!updatedVehicle) throw new Error("Vehicle not found");
+    return { message: "Vehicle updated successfully", vehicle: updatedVehicle };
   } catch (error) {
     console.error("Update Vehicle Error:", error);
     throw error;
@@ -118,6 +135,44 @@ export const handleVehicleReviews = async (req: Request) => {
     return { reviews };
   } catch (error) {
     console.error("Update Vehicle Error:", error);
+    throw error;
+  }
+};
+
+export const handleDeactivateVehicle = async (req: AuthRequest) => {
+  try {
+    if (!req.user?.id)
+      throw new Error("Need a user Id - req.user.id is missing");
+
+    const { id } = req.params;
+    const vehicle: IVehicle | null = await Vehicle.findByIdAndUpdate(
+      id,
+      { status: "de-activated" },
+      { new: true }
+    );
+    if (!vehicle) throw new Error("Vehicle not found");
+    return { message: "Vehicle deactivated successfully", vehicle };
+  } catch (error) {
+    console.error("Deactivate Vehicle Error:", error);
+    throw error;
+  }
+};
+
+export const handleActivateVehicle = async (req: AuthRequest) => {
+  try {
+    if (!req.user?.id)
+      throw new Error("Need a user Id - req.user.id is missing");
+
+    const { id } = req.params;
+    const vehicle: IVehicle | null = await Vehicle.findByIdAndUpdate(
+      id,
+      { status: "active" },
+      { new: true }
+    );
+    if (!vehicle) throw new Error("Vehicle not found");
+    return { message: "Vehicle activated successfully", vehicle };
+  } catch (error) {
+    console.error("Activate Vehicle Error:", error);
     throw error;
   }
 };
