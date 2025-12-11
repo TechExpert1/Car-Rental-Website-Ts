@@ -35,9 +35,18 @@ export const handleGetAllVehicles = async (req: AuthRequest) => {
 
     const query: Record<string, any> = {};
     
-    // If user is authenticated, filter by their vehicles
+    // If user is authenticated
     if (req.user?.id) {
-      query.host = req.user.id;
+      if (req.user.role === "host") {
+        // Host sees their own vehicles (all statuses)
+        query.host = req.user.id;
+      } else if (req.user.role === "customer") {
+        // Customer sees only active vehicles
+        query.status = "active";
+      }
+    } else {
+      // Unauthenticated users see only active vehicles
+      query.status = "active";
     }
     
     Object.keys(filters).forEach((key) => {
