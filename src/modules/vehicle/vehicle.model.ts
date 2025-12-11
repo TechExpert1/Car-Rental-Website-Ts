@@ -32,6 +32,7 @@ export interface IVehicle extends Document {
   };
 
   status: "active" | "de-activated";
+  deactivationEndDate?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -78,6 +79,7 @@ const vehicleSchema: Schema<IVehicle> = new Schema<IVehicle>(
       enum: ["active", "de-activated"],
       default: "active",
     },
+    deactivationEndDate: { type: Date },
   },
   { timestamps: true }
 );

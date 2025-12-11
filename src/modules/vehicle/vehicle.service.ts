@@ -154,9 +154,21 @@ export const handleDeactivateVehicle = async (req: AuthRequest) => {
       throw new Error("Need a user Id - req.user.id is missing");
 
     const { id } = req.params;
+    const { endDate } = req.body;
+
+    const updateData: any = { status: "de-activated" };
+    
+    // If endDate is provided, store it for auto-reactivation
+    if (endDate) {
+      updateData.deactivationEndDate = new Date(endDate);
+    } else {
+      // Clear endDate if not provided
+      updateData.deactivationEndDate = null;
+    }
+
     const vehicle: IVehicle | null = await Vehicle.findByIdAndUpdate(
       id,
-      { status: "de-activated" },
+      updateData,
       { new: true }
     );
     if (!vehicle) throw new Error("Vehicle not found");
@@ -175,7 +187,7 @@ export const handleActivateVehicle = async (req: AuthRequest) => {
     const { id } = req.params;
     const vehicle: IVehicle | null = await Vehicle.findByIdAndUpdate(
       id,
-      { status: "active" },
+      { status: "active", deactivationEndDate: null },
       { new: true }
     );
     if (!vehicle) throw new Error("Vehicle not found");

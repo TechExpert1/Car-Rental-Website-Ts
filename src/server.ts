@@ -14,6 +14,7 @@ import cors from "cors";
 import { webhook } from "./config/stripe";
 import cron from "node-cron";
 import { processPendingPayouts } from "./services/scheduledPayout.service";
+import { autoReactivateVehicles } from "./services/vehicleReactivation.service";
 
 const app = express();
 app.use(cors());
@@ -50,7 +51,7 @@ app.use("/payment", paymentRoutes);
 app.use("/ratings", ratingRoutes);
 
 // ========================
-// Initialize Cron Job for Scheduled Payouts
+// Initialize Cron Jobs
 // ========================
 // Run every hour to check for pending payouts
 // Cron format: "minute hour day month day-of-week"
@@ -64,7 +65,17 @@ cron.schedule("0 * * * *", async () => {
   }
 });
 
-console.log("✅ Scheduled payout cron job initialized (runs every hour)");
+// Run every 30 minutes to check for vehicles that need auto-reactivation
+cron.schedule("*/30 * * * *", async () => {
+  console.log("🔄 Running vehicle auto-reactivation check...");
+  try {
+    await autoReactivateVehicles();
+  } catch (error: any) {
+    console.error("❌ Error in vehicle reactivation cron job:", error.message);
+  }
+});
+
+console.log("✅ Scheduled cron jobs initialized (payouts: hourly, vehicle reactivation: every 30 minutes)");
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
