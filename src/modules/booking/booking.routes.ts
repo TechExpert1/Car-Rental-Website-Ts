@@ -14,9 +14,9 @@ const router = express.Router();
 router.get("/stats", hostAuth, getUserBookingStats);
 router.get("/monthly-stats", hostAuth, getUserYearlyStats);
 router.post("/", userAuth, createSession);
-router.get("/", getAllBooking);
-router.patch("/:id", updateBooking);
+router.get("/", userAuth, getAllBooking); // Get user's bookings (authenticated)
+router.patch("/:id", userAuth, updateBooking);
 router.post("/cancel/:id", userAuth, cancelBooking);
-router.post("/confirm", confirmBooking); // Confirm booking and schedule payout
+router.post("/confirm", userAuth, confirmBooking); // Confirm booking and schedule payout (authenticated)
 
 export default router;

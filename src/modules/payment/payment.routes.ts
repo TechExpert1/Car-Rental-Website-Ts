@@ -4,6 +4,8 @@ import {
   payoutToExternalAccount,
   getAccountStatus,
   handleConnectedAccountWebhook,
+  getStripeOAuthUrl,
+  connectStripeOAuth,
 } from "./payment.controller";
 import { userAuth, hostAuth } from "../../middlewares";
 
@@ -12,6 +14,10 @@ const router = express.Router();
 
 // Connect Stripe account (create or continue onboarding)
 router.post("/connect-stripe", hostAuth, connectStripe);
+
+// Stripe OAuth flow endpoints
+router.get("/stripe-oauth-url", hostAuth, getStripeOAuthUrl);
+router.post("/connect-stripe-oauth", hostAuth, connectStripeOAuth);
 
 // Payout to external connected account
 router.post("/payout", hostAuth, payoutToExternalAccount);

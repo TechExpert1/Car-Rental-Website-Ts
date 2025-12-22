@@ -543,3 +543,139 @@ export const transferToConnectedAccount = async (
     return res.status(500).json({ error: error.message });
   }
 };
+
+// ========================
+// Get Stripe OAuth URL
+// ========================
+export const getStripeOAuthUrl = async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user?.id;
+
+    if (!userId) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    if (user.role !== "host") {
+      return res.status(400).json({ error: "Only hosts can connect a Stripe account" });
+    }
+
+    // Check if user already has a fully configured connected account
+    if (
+      user.connected_acc_id !== "none" &&
+      user.payouts_enabled === true
+    ) {
+      return res.status(400).json({
+        error: "You already have a connected Stripe account",
+        connectedAccountId: user.connected_acc_id,
+      });
+    }
+
+    const clientId = process.env.STRIPE_CLIENT_ID;
+    const redirectUri = `${process.env.CLIENT_URL}/stripe/callback`;
+
+    if (!clientId) {
+      return res.status(500).json({ error: "Stripe client ID not configured" });
+    }
+
+    // Build OAuth URL with state parameter for security
+    const state = Buffer.from(JSON.stringify({ userId: userId.toString() })).toString('base64');
+    
+    const oauthUrl = `https://connect.stripe.com/oauth/authorize?response_type=code&client_id=${clientId}&scope=read_write&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}`;
+
+    return res.status(200).json({
+      url: oauthUrl,
+    });
+  } catch (error: any) {
+    console.error("Error generating Stripe OAuth URL:", error.message);
+    return res.status(500).json({ error: error.message });
+  }
+};
+
+// ========================
+// Connect Stripe via OAuth
+// ========================
+export const connectStripeOAuth = async (req: Request, res: Response) => {
+  try {
+    const { code, state } = req.body;
+    const userId = (req as any).user?.id;
+
+    if (!userId) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    if (!code) {
+      return res.status(400).json({ error: "Authorization code is required" });
+    }
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    if (user.role !== "host") {
+      return res.status(400).json({ error: "Only hosts can connect a Stripe account" });
+    }
+
+    // Check if user already has a fully configured connected account
+    if (
+      user.connected_acc_id !== "none" &&
+      user.payouts_enabled === true
+    ) {
+      return res.status(400).json({
+        error: "You already have a connected Stripe account",
+        connectedAccountId: user.connected_acc_id,
+      });
+    }
+
+    // Exchange the authorization code for an access token
+    const response = await stripe.oauth.token({
+      grant_type: 'authorization_code',
+      code: code,
+    });
+
+    const connectedAccountId = response.stripe_user_id;
+
+    if (!connectedAccountId) {
+      return res.status(400).json({ error: "Failed to connect Stripe account" });
+    }
+
+    // Retrieve the account details to check capabilities
+    const account = await stripe.accounts.retrieve(connectedAccountId);
+
+    // Update user with connected account ID
+    await User.findByIdAndUpdate(
+      userId,
+      {
+        connected_acc_id: connectedAccountId,
+        connected_external_acc_id: account.external_accounts?.data?.[0]?.id || "none",
+        payouts_enabled: account.payouts_enabled || false,
+        payments_enabled: account.charges_enabled || false,
+      },
+      { new: true }
+    );
+
+    return res.status(200).json({
+      success: true,
+      stripeAccountId: connectedAccountId,
+      payoutsEnabled: account.payouts_enabled,
+      chargesEnabled: account.charges_enabled,
+      message: "Stripe account connected successfully",
+    });
+  } catch (error: any) {
+    console.error("Error connecting Stripe via OAuth:", error.message);
+    
+    // Handle specific Stripe OAuth errors
+    if (error.type === 'StripeInvalidGrantError') {
+      return res.status(400).json({ 
+        error: "Invalid authorization code. Please try connecting again." 
+      });
+    }
+    
+    return res.status(500).json({ error: error.message });
+  }
+};

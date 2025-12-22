@@ -60,7 +60,8 @@ export const handleGetAllVehicles = async (req: AuthRequest) => {
 
     const vehicles: IVehicle[] = await Vehicle.find(query)
       .skip((parsedPage - 1) * parsedLimit)
-      .limit(parsedLimit);
+      .limit(parsedLimit)
+      .populate("host", "username image");
 
     return {
       vehicles,
@@ -81,7 +82,8 @@ export const handleGetVehicleById = async (req: Request) => {
   try {
     const { id } = req.params;
     const vehicle: IVehicle | null = await Vehicle.findById(id).populate(
-      "host"
+      "host",
+      "username image"
     );
     if (!vehicle) throw new Error("Vehicle not found");
     return { vehicle };

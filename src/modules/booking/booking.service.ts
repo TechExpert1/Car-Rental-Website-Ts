@@ -44,15 +44,37 @@ export const handleCancelBooking = async (req: Request) => {
 
 export const handleGetAllBooking = async (req: Request) => {
   try {
-    let { page = 1, limit = 10, ...filters } = req.query;
+    const userId = (req as any).user?.id;
+    if (!userId) {
+      throw new Error("User not authenticated");
+    }
+
+    let { page = 1, limit = 10, role, ...filters } = req.query;
 
     const pageNumber = parseInt(page as string, 10);
     const limitNumber = parseInt(limit as string, 10);
 
-    const query: Record<string, any> = {};
+    // Filter bookings where user is either the renter (user) or the car owner (host)
+    const query: Record<string, any> = {
+      $or: [
+        { user: new mongoose.Types.ObjectId(userId) },
+        { host: new mongoose.Types.ObjectId(userId) }
+      ]
+    };
+
+    // Optional: filter by specific role if provided
+    if (role === 'user') {
+      query.$or = undefined;
+      query.user = new mongoose.Types.ObjectId(userId);
+    } else if (role === 'host') {
+      query.$or = undefined;
+      query.host = new mongoose.Types.ObjectId(userId);
+    }
+
+    // Apply additional filters
     Object.keys(filters).forEach((key) => {
       const value = filters[key] as string;
-      if (value) {
+      if (value && key !== 'page' && key !== 'limit') {
         query[key] = { $regex: value, $options: "i" };
       }
     });
@@ -60,6 +82,10 @@ export const handleGetAllBooking = async (req: Request) => {
     const total = await Booking.countDocuments(query);
 
     const bookings = await Booking.find(query)
+      .populate('vehicle', 'name images rent')
+      .populate('user', 'name email')
+      .populate('host', 'name email')
+      .sort({ createdAt: -1 })
       .skip((pageNumber - 1) * limitNumber)
       .limit(limitNumber);
 

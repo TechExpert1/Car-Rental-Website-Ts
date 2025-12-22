@@ -528,13 +528,19 @@ export const createBooking = async (
 // Confirm Booking
 // ========================
 export const confirmBooking = async (
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> => {
   try {
     const { bookingId } = req.body;
+    const userId = req.user?.id;
 
     // Validation
+    if (!userId) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+
     if (!bookingId) {
       res.status(400).json({ error: "Booking ID is required" });
       return;
@@ -544,6 +550,20 @@ export const confirmBooking = async (
     const booking = await Booking.findById(bookingId);
     if (!booking) {
       res.status(404).json({ error: "Booking not found" });
+      return;
+    }
+
+    // Verify the user is either the renter or the host
+    const userIdStr = userId.toString();
+    const bookingUserId = typeof booking.user === 'object' && (booking.user as any)._id
+      ? (booking.user as any)._id.toString()
+      : booking.user.toString();
+    const bookingHostId = typeof booking.host === 'object' && (booking.host as any)._id
+      ? (booking.host as any)._id.toString()
+      : booking.host.toString();
+
+    if (userIdStr !== bookingUserId && userIdStr !== bookingHostId) {
+      res.status(403).json({ error: "You are not authorized to confirm this booking" });
       return;
     }
 
