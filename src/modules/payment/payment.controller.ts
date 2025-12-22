@@ -82,10 +82,8 @@ export const connectStripe = async (req: Request, res: Response) => {
 
     const accountLink = await stripe.accountLinks.create({
       account: account.id,
-      //refresh_url: `${process.env.SERVER_URL}/api/payment/connect-stripe`,
-      //return_url: `${process.env.CLIENT_URL}/dashboard?stripe_connect=success`,
-      refresh_url: "https://www.youtube.com",
-      return_url: "https://www.facebook.com",
+      refresh_url: `${process.env.CLIENT_URL}/stripe/refresh`,
+      return_url: `${process.env.CLIENT_URL}/stripe/callback`,
       type: "account_onboarding",
     });
 
@@ -116,8 +114,8 @@ export const generateAccountLink = async (connectedAccountId: string) => {
   try {
     const accountLink = await stripe.accountLinks.create({
       account: connectedAccountId,
-      refresh_url: "https://www.youtube.com",
-      return_url: "https://www.facebook.com",
+      refresh_url: `${process.env.CLIENT_URL}/stripe/refresh`,
+      return_url: `${process.env.CLIENT_URL}/stripe/callback`,
       type: "account_onboarding",
     });
 
@@ -126,6 +124,64 @@ export const generateAccountLink = async (connectedAccountId: string) => {
     };
   } catch (error: any) {
     return { error: error.message };
+  }
+};
+
+// ========================
+// Refresh Onboarding Link
+// ========================
+export const refreshOnboardingLink = async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user?.id;
+
+    if (!userId) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    const user = await User.findById(userId);
+
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    if (user.role !== "host") {
+      return res.status(400).json({ error: "Only hosts can connect a Stripe account" });
+    }
+
+    // Check if user has no connected account at all
+    if (!user.connected_acc_id || user.connected_acc_id === "none") {
+      return res.status(400).json({
+        error: "No connected account found. Please start the onboarding process first.",
+        action: "start_onboarding",
+      });
+    }
+
+    // Check if already fully onboarded
+    if (user.payouts_enabled === true) {
+      return res.status(400).json({
+        error: "Account is already fully onboarded",
+        connectedAccountId: user.connected_acc_id,
+      });
+    }
+
+    // Generate new onboarding link
+    const accountLink = await generateAccountLink(user.connected_acc_id);
+
+    if (!accountLink || accountLink.error) {
+      return res.status(500).json({
+        error: "Failed to generate onboarding link",
+        details: accountLink?.error,
+      });
+    }
+
+    return res.status(200).json({
+      message: "New onboarding link generated",
+      connectedAccountId: user.connected_acc_id,
+      onboardingUrl: accountLink.url,
+    });
+  } catch (error: any) {
+    console.error("Error refreshing onboarding link:", error.message);
+    return res.status(500).json({ error: error.message });
   }
 };
 
