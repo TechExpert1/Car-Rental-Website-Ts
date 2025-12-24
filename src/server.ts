@@ -34,8 +34,21 @@ app.use(cors({
 app.post(
   "/payment/webhook/connected-account",
   express.raw({ type: "application/json" }),
+  (req, res, next) => {
+    console.log("🚨🚨🚨 WEBHOOK ENDPOINT HIT! 🚨🚨🚨");
+    console.log("📨 Method:", req.method);
+    console.log("📨 URL:", req.url);
+    console.log("📨 Headers:", JSON.stringify(req.headers, null, 2));
+    next();
+  },
   webhook
 );
+
+// Test endpoint to verify routing
+app.get("/payment/webhook/test", (req, res) => {
+  console.log("✅ Test endpoint hit");
+  res.json({ message: "Webhook test endpoint working" });
+});
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
