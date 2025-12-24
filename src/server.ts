@@ -17,7 +17,38 @@ import { processPendingPayouts } from "./services/scheduledPayout.service";
 import { autoReactivateVehicles } from "./services/vehicleReactivation.service";
 
 const app = express();
-app.use(cors());
+
+// ========================
+// CORS Configuration
+// ========================
+const allowedOrigins = [
+  'http://localhost:5173',      // Vite dev server (default)
+  'http://localhost:3000',      // Alternative dev port
+  'http://localhost:3001',      // Another alternative
+  'http://localhost:5174',      // Vite port + 1
+  process.env.CLIENT_URL,       // Production frontend from env
+].filter(Boolean);
+
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like curl requests or mobile apps)
+    if (!origin) {
+      return callback(null, true);
+    }
+
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      console.warn(`⚠️ CORS blocked origin: ${origin}`);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  optionsSuccessStatus: 200,
+  maxAge: 86400, // 24 hours
+}));
 
 // Webhook routes need raw body for Stripe signature verification
 app.post(
