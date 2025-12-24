@@ -31,18 +31,9 @@ app.use(cors({
 
 // Webhook routes need raw body for Stripe signature verification
 app.post(
-  "/bookings/webhook",
-  express.raw({ type: "application/json" }),
-  webhook
-);
-
-app.post(
   "/payment/webhook/connected-account",
   express.raw({ type: "application/json" }),
-  async (req, res, next) => {
-    const { handleConnectedAccountWebhook } = await import("./modules/payment/payment.controller");
-    return handleConnectedAccountWebhook(req, res);
-  }
+  webhook
 );
 
 app.use(express.json());

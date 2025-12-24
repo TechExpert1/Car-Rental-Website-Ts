@@ -106,13 +106,11 @@ export const createSession = async (req: AuthRequest, res: Response) => {
 };
 
 // ========================
-// Stripe Webhook
+// Stripe Webhook (Handles both booking and connected account events)
 // ========================
 export const webhook = async (req: Request, res: Response) => {
   console.log("========== WEBHOOK DEBUG ==========");
   console.log("📨 Webhook received at:", new Date().toISOString());
-  console.log("📨 req.body type:", typeof req.body);
-  console.log("📨 req.body is Buffer?:", Buffer.isBuffer(req.body));
   
   const sig = req.headers["stripe-signature"] as string | undefined;
   const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET as string;
@@ -138,6 +136,7 @@ export const webhook = async (req: Request, res: Response) => {
     return res.status(400).send(`Webhook Error: ${err.message}`);
   }
   
+  // Handle checkout.session.completed events (booking payments)
   if (event.type === "checkout.session.completed") {
     const session = event.data.object as Stripe.Checkout.Session;
     const bookingId = session.metadata?.bookingId;
@@ -191,8 +190,10 @@ export const webhook = async (req: Request, res: Response) => {
       console.error("❌ Error code:", err.code);
       console.error("❌ Error stack:", err.stack);
     }
-  } else {
-    console.log("ℹ️ Ignoring event type:", event.type);
+  }
+  // Handle other event types if needed
+  else {
+    console.log("ℹ️ Event type:", event.type, "(not handling in this webhook)");
   }
   
   console.log("========== END WEBHOOK DEBUG ==========");
