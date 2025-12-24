@@ -92,17 +92,31 @@ export const createSession = async (req: AuthRequest, res: Response) => {
 // ========================
 export const webhook = async (req: Request, res: Response) => {
   console.log("========== WEBHOOK DEBUG ==========");
-  console.log("📨 Webhook received");
+  console.log("📨 Webhook received at:", new Date().toISOString());
+  console.log("📨 req.body type:", typeof req.body);
+  console.log("📨 req.body is Buffer?:", Buffer.isBuffer(req.body));
+  
   const sig = req.headers["stripe-signature"] as string | undefined;
   const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET as string;
 
+  if (!sig) {
+    console.error("❌ No stripe-signature header found");
+    return res.status(400).send("No stripe-signature header");
+  }
+
+  if (!endpointSecret) {
+    console.error("❌ STRIPE_WEBHOOK_SECRET not configured");
+    return res.status(400).send("Webhook secret not configured");
+  }
+
   let event: Stripe.Event;
   try {
-    event = stripe.webhooks.constructEvent(req.body, sig!, endpointSecret);
+    event = stripe.webhooks.constructEvent(req.body, sig, endpointSecret);
     console.log("✅ Webhook signature verified");
     console.log("📝 Event type:", event.type);
+    console.log("📝 Event ID:", event.id);
   } catch (err: any) {
-    console.error("❌ Webhook signature verification failed.", err.message);
+    console.error("❌ Webhook signature verification failed:", err.message);
     return res.status(400).send(`Webhook Error: ${err.message}`);
   }
   
@@ -111,14 +125,22 @@ export const webhook = async (req: Request, res: Response) => {
     const bookingId = session.metadata?.bookingId;
     console.log("🎫 Checkout session completed!");
     console.log("📝 Booking ID from metadata:", bookingId);
+    console.log("📝 Session ID:", session.id);
     console.log("📝 Payment Intent:", session.payment_intent);
-    console.log("📝 Full session metadata:", session.metadata);
+    console.log("📝 Full metadata:", JSON.stringify(session.metadata));
+    
+    if (!bookingId) {
+      console.error("❌ No bookingId in session metadata!");
+      res.json({ received: true, error: "No bookingId in metadata" });
+      return;
+    }
     
     try {
       const paymentIntent = await stripe.paymentIntents.retrieve(
         session.payment_intent as string
       );
       console.log("💳 Payment Intent retrieved:", paymentIntent.id);
+      console.log("💳 Payment status:", paymentIntent.status);
 
       // Check if booking exists before updating
       const existingBooking = await Booking.findById(bookingId);
@@ -129,6 +151,7 @@ export const webhook = async (req: Request, res: Response) => {
       }
       console.log("✅ Found booking:", existingBooking._id);
       console.log("📝 Current booking status:", existingBooking.bookingStatus);
+      console.log("📝 Current payment status:", existingBooking.paymentStatus);
 
       // Update booking
       const updatedBooking = await Booking.findByIdAndUpdate(
@@ -145,7 +168,9 @@ export const webhook = async (req: Request, res: Response) => {
       console.log("📝 New booking status:", updatedBooking?.bookingStatus);
       console.log("📝 New payment status:", updatedBooking?.paymentStatus);
     } catch (err: any) {
-      console.error("❌ Booking update error:", err.message);
+      console.error("❌ Error during booking update:");
+      console.error("❌ Error message:", err.message);
+      console.error("❌ Error code:", err.code);
       console.error("❌ Error stack:", err.stack);
     }
   } else {
