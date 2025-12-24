@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+import Stripe from "stripe";
 import { stripe } from "../../config/stripe";
 import User from "../auth/auth.model";
 import AuthRequest from "../../middlewares/userAuth";
