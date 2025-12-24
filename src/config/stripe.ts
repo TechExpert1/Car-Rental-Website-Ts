@@ -115,128 +115,129 @@ export const createSession = async (req: AuthRequest, res: Response) => {
 // Stripe Webhook (Handles both booking and connected account events)
 // ========================
 export const webhook = async (req: Request, res: Response) => {
-  console.log("========== WEBHOOK DEBUG ==========");
-  console.log("📨 Webhook received at:", new Date().toISOString());
-  
-  const sig = req.headers["stripe-signature"] as string | undefined;
-  const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET as string;
-
-  if (!sig) {
-    console.error("❌ No stripe-signature header found");
-    return res.status(400).send("No stripe-signature header");
-  }
-
-  if (!endpointSecret) {
-    console.error("❌ STRIPE_WEBHOOK_SECRET not configured");
-    return res.status(400).send("Webhook secret not configured");
-  }
-
-  let event: Stripe.Event;
   try {
-    event = stripe.webhooks.constructEvent(req.body, sig, endpointSecret);
-    console.log("✅ Webhook signature verified");
+    console.log("========== WEBHOOK CALLED ==========");
+    console.log("📨 Raw webhook received");
+    
+    const sig = req.headers["stripe-signature"] as string | undefined;
+    const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET as string;
+
+    console.log("📝 Signature header present?:", !!sig);
+    console.log("📝 Endpoint secret present?:", !!endpointSecret);
+
+    if (!sig) {
+      console.error("❌ No stripe-signature header found");
+      return res.status(400).send("No stripe-signature header");
+    }
+
+    if (!endpointSecret) {
+      console.error("❌ STRIPE_WEBHOOK_SECRET not configured");
+      return res.status(400).send("Webhook secret not configured");
+    }
+
+    let event: Stripe.Event;
+    try {
+      event = stripe.webhooks.constructEvent(req.body, sig, endpointSecret);
+      console.log("✅ Webhook signature verified");
+    } catch (err: any) {
+      console.error("❌ Webhook signature verification failed:", err.message);
+      return res.status(400).send(`Webhook Error: ${err.message}`);
+    }
+
     console.log("📝 Event type:", event.type);
     console.log("📝 Event ID:", event.id);
-  } catch (err: any) {
-    console.error("❌ Webhook signature verification failed:", err.message);
-    return res.status(400).send(`Webhook Error: ${err.message}`);
-  }
   
-  // ==========================================
-  // BOOKING PAYMENT WEBHOOKS
-  // ==========================================
-  
-  // Handle checkout.session.completed events (booking payments)
-  if (event.type === "checkout.session.completed") {
-    const session = event.data.object as Stripe.Checkout.Session;
-    const bookingId = session.metadata?.bookingId;
-    console.log("🎫 Checkout session completed!");
-    console.log("📝 Booking ID from metadata:", bookingId);
-    console.log("📝 Session ID:", session.id);
-    console.log("📝 Payment Intent:", session.payment_intent);
-    console.log("📝 Full metadata:", JSON.stringify(session.metadata));
+    // ==========================================
+    // BOOKING PAYMENT WEBHOOKS
+    // ==========================================
     
-    if (!bookingId) {
-      console.error("❌ No bookingId in session metadata!");
-      res.json({ received: true, error: "No bookingId in metadata" });
+    // Handle checkout.session.completed events (booking payments)
+    if (event.type === "checkout.session.completed") {
+      console.log("🎫 ✅✅✅ CHECKOUT SESSION COMPLETED! ✅✅✅");
+      const session = event.data.object as Stripe.Checkout.Session;
+      const bookingId = session.metadata?.bookingId;
+      console.log("📝 Booking ID from metadata:", bookingId);
+      console.log("📝 Session ID:", session.id);
+      console.log("📝 Payment Intent:", session.payment_intent);
+      
+      if (!bookingId) {
+        console.error("❌ No bookingId in session metadata!");
+        res.json({ received: true, error: "No bookingId in metadata" });
+        return;
+      }
+      
+      try {
+        const paymentIntent = await stripe.paymentIntents.retrieve(
+          session.payment_intent as string
+        );
+        console.log("💳 Payment Intent retrieved:", paymentIntent.id);
+
+        const existingBooking = await Booking.findById(bookingId);
+        if (!existingBooking) {
+          console.error("❌ Booking not found with ID:", bookingId);
+          res.json({ received: true, error: "Booking not found" });
+          return;
+        }
+        console.log("✅ Found booking:", existingBooking._id);
+
+        const updatedBooking = await Booking.findByIdAndUpdate(
+          bookingId,
+          {
+            paymentIntentId: paymentIntent.id,
+            paymentStatus: "succeeded",
+            bookingStatus: "active",
+          },
+          { new: true }
+        );
+        
+        console.log("✅✅✅ BOOKING UPDATED TO ACTIVE! ✅✅✅");
+        console.log("📝 New booking status:", updatedBooking?.bookingStatus);
+      } catch (err: any) {
+        console.error("❌ Error during booking update:", err.message);
+        console.error("❌ Stack:", err.stack);
+      }
+      
+      res.json({ received: true });
       return;
     }
     
-    try {
-      const paymentIntent = await stripe.paymentIntents.retrieve(
-        session.payment_intent as string
-      );
-      console.log("💳 Payment Intent retrieved:", paymentIntent.id);
-      console.log("💳 Payment status:", paymentIntent.status);
+    // ==========================================
+    // CONNECTED ACCOUNT WEBHOOKS
+    // ==========================================
+    
+    console.log("📝 Processing event type:", event.type);
+    switch (event.type) {
+      case "account.updated":
+        console.log("👤 Account updated event");
+        await handleAccountUpdated(event.data.object);
+        break;
 
-      // Check if booking exists before updating
-      const existingBooking = await Booking.findById(bookingId);
-      if (!existingBooking) {
-        console.error("❌ Booking not found with ID:", bookingId);
-        res.json({ received: true, error: "Booking not found" });
-        return;
-      }
-      console.log("✅ Found booking:", existingBooking._id);
-      console.log("📝 Current booking status:", existingBooking.bookingStatus);
-      console.log("📝 Current payment status:", existingBooking.paymentStatus);
+      case "account.external_account.created":
+        console.log("💳 External account created event");
+        await handleExternalAccountCreated(event.data.object);
+        break;
 
-      // Update booking
-      const updatedBooking = await Booking.findByIdAndUpdate(
-        bookingId,
-        {
-          paymentIntentId: paymentIntent.id,
-          paymentStatus: "succeeded",
-          bookingStatus: "active",
-        },
-        { new: true }
-      );
-      
-      console.log("✅ Booking updated successfully!");
-      console.log("📝 New booking status:", updatedBooking?.bookingStatus);
-      console.log("📝 New payment status:", updatedBooking?.paymentStatus);
-    } catch (err: any) {
-      console.error("❌ Error during booking update:");
-      console.error("❌ Error message:", err.message);
-      console.error("❌ Error code:", err.code);
-      console.error("❌ Error stack:", err.stack);
+      case "account.external_account.updated":
+        console.log("💳 External account updated event");
+        await handleExternalAccountUpdated(event.data.object);
+        break;
+
+      case "capability.updated":
+        console.log("⚙️ Capability updated event");
+        await handleCapabilityUpdated(event.data.object);
+        break;
+
+      default:
+        console.log("ℹ️ Unhandled event type:", event.type);
     }
     
-    console.log("========== END WEBHOOK DEBUG ==========");
+    console.log("========== END WEBHOOK ==========");
     res.json({ received: true });
-    return;
+  } catch (err: any) {
+    console.error("❌ CRITICAL WEBHOOK ERROR:", err.message);
+    console.error("❌ Stack:", err.stack);
+    res.status(500).json({ error: err.message });
   }
-  
-  // ==========================================
-  // CONNECTED ACCOUNT WEBHOOKS (for host payouts)
-  // ==========================================
-  
-  switch (event.type) {
-    case "account.updated":
-      console.log("👤 Account updated event");
-      await handleAccountUpdated(event.data.object);
-      break;
-
-    case "account.external_account.created":
-      console.log("💳 External account created event");
-      await handleExternalAccountCreated(event.data.object);
-      break;
-
-    case "account.external_account.updated":
-      console.log("💳 External account updated event");
-      await handleExternalAccountUpdated(event.data.object);
-      break;
-
-    case "capability.updated":
-      console.log("⚙️ Capability updated event");
-      await handleCapabilityUpdated(event.data.object);
-      break;
-
-    default:
-      console.log("ℹ️ Unhandled event type:", event.type);
-  }
-  
-  console.log("========== END WEBHOOK DEBUG ==========");
-  res.json({ received: true });
 };
 
 export const createConnectedAccount = async (req: Request, res: Response) => {
