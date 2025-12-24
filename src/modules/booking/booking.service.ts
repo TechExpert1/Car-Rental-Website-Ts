@@ -87,7 +87,27 @@ export const handleGetAllBooking = async (req: AuthRequest) => {
       query.host = new mongoose.Types.ObjectId(userId);
     }
 
-    // Apply additional filters
+    // Handle bookingStatus filter separately (exact match, not regex)
+    if (filters.bookingStatus) {
+      const status = filters.bookingStatus as string;
+      const validStatuses = ["in-progress", "active", "completed", "canceled"];
+      if (validStatuses.includes(status)) {
+        query.bookingStatus = status;
+      }
+      delete filters.bookingStatus; // Remove from filters to avoid regex processing
+    }
+
+    // Handle paymentStatus filter separately (exact match, not regex)
+    if (filters.paymentStatus) {
+      const status = filters.paymentStatus as string;
+      const validStatuses = ["pending", "succeeded", "failed", "refunded", "partially_refunded"];
+      if (validStatuses.includes(status)) {
+        query.paymentStatus = status;
+      }
+      delete filters.paymentStatus; // Remove from filters to avoid regex processing
+    }
+
+    // Apply additional filters (regex-based for string fields)
     Object.keys(filters).forEach((key) => {
       const value = filters[key] as string;
       if (value && key !== 'page' && key !== 'limit') {
