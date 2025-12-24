@@ -96,7 +96,18 @@ export const connectStripe = async (req: Request, res: Response) => {
       { new: true }
     );
 
-    console.log(`[Stripe Connect] Account ${account.id} created and saved for user ${existingUser._id}`);
+    // Verify the save worked
+    if (!updatedUser || updatedUser.connected_acc_id !== account.id) {
+      console.error(`[Stripe Connect] FAILED to save account ID! User: ${existingUser._id}, Account: ${account.id}`);
+      console.error(`[Stripe Connect] Updated user connected_acc_id: ${updatedUser?.connected_acc_id}`);
+      return res.status(500).json({ 
+        error: "Failed to save Stripe account to database",
+        debug: { savedAccountId: updatedUser?.connected_acc_id, expectedAccountId: account.id }
+      });
+    }
+
+    console.log(`[Stripe Connect] ✅ Account ${account.id} created and saved for user ${existingUser._id}`);
+    console.log(`[Stripe Connect] Verified: user.connected_acc_id = ${updatedUser.connected_acc_id}`);
 
     return res.status(200).json({
       message: "Connected account created successfully",
