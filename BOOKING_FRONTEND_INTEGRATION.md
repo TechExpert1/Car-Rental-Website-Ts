@@ -589,6 +589,8 @@ interface Pagination {
   totalPages: number;
 }
 
+import ConfirmBookingButton from '../../components/ConfirmBookingButton';
+
 export default function MyBookings() {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [pagination, setPagination] = useState<Pagination | null>(null);
@@ -734,9 +736,16 @@ export default function MyBookings() {
                   View Details
                 </button>
                 {booking.bookingStatus === 'active' && (
-                  <button className="px-4 py-2 text-sm bg-red-50 text-red-600 rounded hover:bg-red-100">
-                    Cancel
-                  </button>
+                  <>
+                    <button className="px-4 py-2 text-sm bg-red-50 text-red-600 rounded hover:bg-red-100">
+                      Cancel
+                    </button>
+
+                    {/* Show confirm button for hosts only */}
+                    {role === 'host' && (
+                      <ConfirmBookingButton bookingId={booking._id} onSuccess={() => fetchBookings()} />
+                    )}
+                  </>
                 )}
               </div>
             </div>

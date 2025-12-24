@@ -558,7 +558,7 @@ export const confirmBooking = async (
       return;
     }
 
-    // Verify the user is either the renter or the host
+    // Verify the user is the host (only hosts can confirm completion)
     const userIdStr = userId.toString();
     const bookingUserId = typeof booking.user === 'object' && (booking.user as any)._id
       ? (booking.user as any)._id.toString()
@@ -567,13 +567,13 @@ export const confirmBooking = async (
       ? (booking.host as any)._id.toString()
       : booking.host.toString();
 
-    if (userIdStr !== bookingUserId && userIdStr !== bookingHostId) {
-      res.status(403).json({ error: "You are not authorized to confirm this booking" });
+    if (userIdStr !== bookingHostId) {
+      res.status(403).json({ error: "Only the host can confirm completion" });
       return;
     }
 
-    // Check if booking is in in-progress status
-    if (booking.bookingStatus !== "in-progress") {
+    // Allow confirming when booking is 'in-progress' or 'active' (host may confirm once active)
+    if (!["in-progress", "active"].includes(booking.bookingStatus)) {
       res.status(400).json({
         error: `Cannot confirm booking with status: ${booking.bookingStatus}`,
         currentStatus: booking.bookingStatus,
