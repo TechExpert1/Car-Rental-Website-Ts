@@ -18,6 +18,7 @@ export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || 'sk_test_missi
 // ========================
 export const createSession = async (req: AuthRequest, res: Response) => {
   try {
+    console.log("========== CREATE SESSION DEBUG ==========");
     const { vehicle, pickupDate, totalDays, dropoffDate, host, totalAmount } =
       req.body as {
         vehicle: string;
@@ -27,6 +28,8 @@ export const createSession = async (req: AuthRequest, res: Response) => {
         totalDays: number;
         host: string;
       };
+
+    console.log("📝 Received booking request:", { vehicle, host, totalAmount, totalDays });
 
     // 1. Get vehicle info
     const vehicleDoc = await Vehicle.findById(vehicle).lean<
@@ -47,6 +50,12 @@ export const createSession = async (req: AuthRequest, res: Response) => {
       totalAmount,
       paymentStatus: "pending",
       bookingStatus: "in-progress",
+    });
+
+    console.log("✅ Booking created in DB:", {
+      bookingId: booking._id.toString(),
+      userId: req.user?.id,
+      hostId: host,
     });
 
     // 3. Stripe line item
@@ -74,15 +83,24 @@ export const createSession = async (req: AuthRequest, res: Response) => {
       },
     });
 
+    console.log("✅ Stripe session created:", {
+      sessionId: session.id,
+      bookingId: booking._id.toString(),
+      metadata: session.metadata,
+    });
+
     // 5. If Stripe returned payment_intent (sometimes available immediately)
     if (session.payment_intent) {
       booking.paymentIntentId = session.payment_intent as string;
       await booking.save();
+      console.log("💳 Payment intent saved:", session.payment_intent);
     }
 
+    console.log("========== END CREATE SESSION DEBUG ==========");
     res.json({ sessionUrl: session.url });
   } catch (error: any) {
-    console.error("Session creation error:", error.message);
+    console.error("❌ Session creation error:", error.message);
+    console.error("❌ Error:", error);
     res.status(500).json({ message: error.message });
   }
 };
