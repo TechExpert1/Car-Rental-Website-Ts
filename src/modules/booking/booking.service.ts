@@ -136,10 +136,17 @@ export const handleGetAllBooking = async (req: AuthRequest) => {
     const bookings = await Booking.find(query)
       .populate('vehicle', 'name images rent')
       .populate('user', 'name email')
-      .populate('host', 'name email')
+      .populate('host', 'name username email')
       .sort({ createdAt: -1 })
       .skip((pageNumber - 1) * limitNumber)
       .limit(limitNumber);
+
+    // Ensure host has a display name in the response (fallback to username or email)
+    bookings.forEach((b: any) => {
+      if (b.host && !b.host.name) {
+        b.host.name = b.host.username || b.host.email || 'Host';
+      }
+    });
 
     console.log("📝 Retrieved bookings:", bookings.length);
     console.log("========== END DEBUG ==========");
