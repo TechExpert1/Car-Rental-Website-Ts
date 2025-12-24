@@ -6,7 +6,15 @@ import { Document } from "mongoose";
 import AuthRequest from "../middlewares/userAuth";
 import userModel from "../modules/auth/auth.model";
 
-export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string);
+// Initialize Stripe - check if key exists
+if (!process.env.STRIPE_SECRET_KEY) {
+  console.error('❌ STRIPE_SECRET_KEY is not set in environment variables');
+  console.error('⚠️ Stripe features will not work. Please set STRIPE_SECRET_KEY in Railway dashboard or .env');
+}
+
+export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || 'sk_test_missing', {
+  apiVersion: '2023-10-16',
+});
 // ========================
 // Create Checkout Session
 // ========================
