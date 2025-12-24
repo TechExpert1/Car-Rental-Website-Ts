@@ -91,39 +91,68 @@ export const createSession = async (req: AuthRequest, res: Response) => {
 // Stripe Webhook
 // ========================
 export const webhook = async (req: Request, res: Response) => {
-  console.log("entered in webhook ::::::::::");
-  console.log(process.env.STRIPE_WEBHOOK_SECRET);
+  console.log("========== WEBHOOK DEBUG ==========");
+  console.log("📨 Webhook received");
   const sig = req.headers["stripe-signature"] as string | undefined;
   const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET as string;
 
   let event: Stripe.Event;
   try {
     event = stripe.webhooks.constructEvent(req.body, sig!, endpointSecret);
+    console.log("✅ Webhook signature verified");
+    console.log("📝 Event type:", event.type);
   } catch (err: any) {
-    console.error("Webhook signature verification failed.", err.message);
+    console.error("❌ Webhook signature verification failed.", err.message);
     return res.status(400).send(`Webhook Error: ${err.message}`);
   }
-  console.log("Check 2::::::::::");
+  
   if (event.type === "checkout.session.completed") {
     const session = event.data.object as Stripe.Checkout.Session;
     const bookingId = session.metadata?.bookingId;
-    console.log("bookingId ::::::: ", bookingId);
+    console.log("🎫 Checkout session completed!");
+    console.log("📝 Booking ID from metadata:", bookingId);
+    console.log("📝 Payment Intent:", session.payment_intent);
+    console.log("📝 Full session metadata:", session.metadata);
+    
     try {
       const paymentIntent = await stripe.paymentIntents.retrieve(
         session.payment_intent as string
       );
+      console.log("💳 Payment Intent retrieved:", paymentIntent.id);
+
+      // Check if booking exists before updating
+      const existingBooking = await Booking.findById(bookingId);
+      if (!existingBooking) {
+        console.error("❌ Booking not found with ID:", bookingId);
+        res.json({ received: true, error: "Booking not found" });
+        return;
+      }
+      console.log("✅ Found booking:", existingBooking._id);
+      console.log("📝 Current booking status:", existingBooking.bookingStatus);
 
       // Update booking
-      await Booking.findByIdAndUpdate(bookingId, {
-        paymentIntentId: paymentIntent.id,
-        paymentStatus: "succeeded",
-        bookingStatus: "active",
-      });
+      const updatedBooking = await Booking.findByIdAndUpdate(
+        bookingId,
+        {
+          paymentIntentId: paymentIntent.id,
+          paymentStatus: "succeeded",
+          bookingStatus: "active",
+        },
+        { new: true }
+      );
+      
+      console.log("✅ Booking updated successfully!");
+      console.log("📝 New booking status:", updatedBooking?.bookingStatus);
+      console.log("📝 New payment status:", updatedBooking?.paymentStatus);
     } catch (err: any) {
-      console.error("Booking update error:", err.message);
+      console.error("❌ Booking update error:", err.message);
+      console.error("❌ Error stack:", err.stack);
     }
+  } else {
+    console.log("ℹ️ Ignoring event type:", event.type);
   }
-
+  
+  console.log("========== END WEBHOOK DEBUG ==========");
   res.json({ received: true });
 };
 
