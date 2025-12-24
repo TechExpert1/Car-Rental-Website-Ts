@@ -87,19 +87,22 @@ export const connectStripe = async (req: Request, res: Response) => {
       type: "account_onboarding",
     });
 
-    // Update user with connected account ID
-    await User.findOneAndUpdate(
-      { email: email },
+    // Update user with connected account ID (use the existing user's _id for reliable update)
+    const updatedUser = await User.findByIdAndUpdate(
+      existingUser._id,
       {
         connected_acc_id: account.id,
       },
       { new: true }
     );
 
+    console.log(`[Stripe Connect] Account ${account.id} created and saved for user ${existingUser._id}`);
+
     return res.status(200).json({
       message: "Connected account created successfully",
       connectedAccountId: account.id,
       onboardingUrl: accountLink.url,
+      userId: existingUser._id, // Include for debugging
     });
   } catch (error: any) {
     console.error("Error creating connected account:", error.message);
@@ -436,6 +439,8 @@ export const getAccountStatus = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.id;
 
+    console.log(`[Account Status] Checking for userId: ${userId}`);
+
     if (!userId) {
       return res.status(401).json({ error: "Unauthorized" });
     }
@@ -443,13 +448,18 @@ export const getAccountStatus = async (req: AuthRequest, res: Response) => {
     const user = await User.findById(userId);
 
     if (!user) {
+      console.log(`[Account Status] User not found for id: ${userId}`);
       return res.status(404).json({ error: "User not found" });
     }
+
+    console.log(`[Account Status] User found: ${user.email}, connected_acc_id: ${user.connected_acc_id}`);
 
     if (!user.connected_acc_id || user.connected_acc_id === "none") {
       return res.status(200).json({
         hasAccount: false,
         message: "No connected account found",
+        userId: userId, // Debug info
+        userEmail: user.email, // Debug info
       });
     }
 
