@@ -30,6 +30,7 @@ app.use(cors({
 }));
 
 // Webhook routes need raw body for Stripe signature verification
+// This single endpoint handles ALL Stripe webhook events (both checkout and connected account)
 app.post(
   "/payment/webhook/connected-account",
   express.raw({ type: "application/json" }),

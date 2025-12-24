@@ -5,6 +5,12 @@ import Stripe from "stripe";
 import { Document } from "mongoose";
 import AuthRequest from "../middlewares/userAuth";
 import userModel from "../modules/auth/auth.model";
+import {
+  handleAccountUpdated,
+  handleExternalAccountCreated,
+  handleExternalAccountUpdated,
+  handleCapabilityUpdated,
+} from "../modules/payment/payment.controller";
 
 // Initialize Stripe - check if key exists
 if (!process.env.STRIPE_SECRET_KEY) {
@@ -136,6 +142,10 @@ export const webhook = async (req: Request, res: Response) => {
     return res.status(400).send(`Webhook Error: ${err.message}`);
   }
   
+  // ==========================================
+  // BOOKING PAYMENT WEBHOOKS
+  // ==========================================
+  
   // Handle checkout.session.completed events (booking payments)
   if (event.type === "checkout.session.completed") {
     const session = event.data.object as Stripe.Checkout.Session;
@@ -190,10 +200,39 @@ export const webhook = async (req: Request, res: Response) => {
       console.error("❌ Error code:", err.code);
       console.error("❌ Error stack:", err.stack);
     }
+    
+    console.log("========== END WEBHOOK DEBUG ==========");
+    res.json({ received: true });
+    return;
   }
-  // Handle other event types if needed
-  else {
-    console.log("ℹ️ Event type:", event.type, "(not handling in this webhook)");
+  
+  // ==========================================
+  // CONNECTED ACCOUNT WEBHOOKS (for host payouts)
+  // ==========================================
+  
+  switch (event.type) {
+    case "account.updated":
+      console.log("👤 Account updated event");
+      await handleAccountUpdated(event.data.object);
+      break;
+
+    case "account.external_account.created":
+      console.log("💳 External account created event");
+      await handleExternalAccountCreated(event.data.object);
+      break;
+
+    case "account.external_account.updated":
+      console.log("💳 External account updated event");
+      await handleExternalAccountUpdated(event.data.object);
+      break;
+
+    case "capability.updated":
+      console.log("⚙️ Capability updated event");
+      await handleCapabilityUpdated(event.data.object);
+      break;
+
+    default:
+      console.log("ℹ️ Unhandled event type:", event.type);
   }
   
   console.log("========== END WEBHOOK DEBUG ==========");

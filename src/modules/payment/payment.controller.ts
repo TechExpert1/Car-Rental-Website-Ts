@@ -443,6 +443,9 @@ const handleCapabilityUpdated = async (capability: any) => {
   }
 };
 
+// Export handlers for use in webhook
+export { handleAccountUpdated, handleExternalAccountCreated, handleExternalAccountUpdated, handleCapabilityUpdated };
+
 // ========================
 // Get Account Status
 // ========================
