@@ -8,7 +8,7 @@ export interface IBooking extends Document {
   vehicle: mongoose.Types.ObjectId;
   paymentIntentId?: string;
   paymentStatus: "pending" | "succeeded" | "failed" | "refunded" | "partially_refunded";
-  bookingStatus: "in-progress" | "completed" | "canceled";
+  bookingStatus: "in-progress" | "active" | "completed" | "canceled";
   totalAmount: number;
   totalDays: number;
   pickupDate: Date;

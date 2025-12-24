@@ -279,9 +279,14 @@ export const getAllBooking = async (
   res: Response
 ): Promise<void> => {
   try {
+    console.log("🔍 getAllBooking endpoint called");
+    console.log("📝 Headers:", req.headers);
+    console.log("📝 Query params:", req.query);
     const result = await handleGetAllBooking(req);
+    console.log("✅ getAllBooking - sending response with bookings:", result.bookings.length);
     res.status(200).json(result);
   } catch (err: any) {
+    console.error("❌ getAllBooking error:", err.message);
     res.status(422).json({ error: err.message });
   }
 };

@@ -31,6 +31,7 @@ export const userAuth = (
     }
 
     if (!token) {
+      console.warn("⚠️ userAuth - No token provided in headers");
       res.status(401).json({ message: "Unauthorized: No token provided" });
       return;
     }
@@ -41,11 +42,14 @@ export const userAuth = (
     if (typeof decoded === "object" && decoded !== null) {
       const { id, username, email, role } = decoded as UserPayload;
       req.user = { id, username, email, role };
+      console.log("✅ userAuth - User authenticated:", { id, username, email, role });
       next();
     } else {
+      console.warn("⚠️ userAuth - Invalid token payload");
       res.status(401).json({ message: "Unauthorized: Invalid token payload" });
     }
   } catch (err) {
+    console.error("❌ userAuth - Token verification failed:", err);
     res.status(401).json({ message: "Unauthorized: Invalid or expired token" });
   }
 };

@@ -2,7 +2,8 @@ import { Request } from "express";
 import Booking, { IBooking } from "./booking.model";
 import mongoose from "mongoose";
 import { refundPayment } from "../../utils/booking";
-export const handleUpdateBooking = async (req: Request) => {
+import AuthRequest from "../../middlewares/userAuth";
+export const handleUpdateBooking = async (req: AuthRequest) => {
   try {
     const { id } = req.params;
     const booking: IBooking | null = await Booking.findByIdAndUpdate(
@@ -20,7 +21,7 @@ export const handleUpdateBooking = async (req: Request) => {
   }
 };
 
-export const handleCancelBooking = async (req: Request) => {
+export const handleCancelBooking = async (req: AuthRequest) => {
   try {
     const { id } = req.params;
     const booking = await Booking.findById(id);
@@ -42,14 +43,29 @@ export const handleCancelBooking = async (req: Request) => {
   }
 };
 
-export const handleGetAllBooking = async (req: Request) => {
+export const handleGetAllBooking = async (req: AuthRequest) => {
   try {
-    const userId = (req as any).user?.id;
+    const userId = req.user?.id;
+    console.log("📝 handleGetAllBooking - userId from request:", userId);
+    console.log("📝 handleGetAllBooking - req.user:", req.user);
+    
     if (!userId) {
       throw new Error("User not authenticated");
     }
 
+    // Check total bookings in database
+    const totalBookingsInDB = await Booking.countDocuments({});
+    console.log("📊 Total bookings in database:", totalBookingsInDB);
+
+    // Check if any bookings exist for this user (as user or host)
+    const userBookingsCount = await Booking.countDocuments({ user: new mongoose.Types.ObjectId(userId) });
+    const hostBookingsCount = await Booking.countDocuments({ host: new mongoose.Types.ObjectId(userId) });
+    console.log("📊 Bookings where user is renter:", userBookingsCount);
+    console.log("📊 Bookings where user is host:", hostBookingsCount);
+
     let { page = 1, limit = 10, role, ...filters } = req.query;
+    console.log("📝 handleGetAllBooking - role:", role);
+    console.log("📝 handleGetAllBooking - filters:", filters);
 
     const pageNumber = parseInt(page as string, 10);
     const limitNumber = parseInt(limit as string, 10);
@@ -79,7 +95,22 @@ export const handleGetAllBooking = async (req: Request) => {
       }
     });
 
+    console.log("📝 handleGetAllBooking - MongoDB query:", JSON.stringify(query, null, 2));
+
     const total = await Booking.countDocuments(query);
+    console.log("📝 handleGetAllBooking - Total bookings matching query:", total);
+
+    // Get a sample booking to compare IDs
+    if (totalBookingsInDB > 0) {
+      const sampleBooking = await Booking.findOne({}).lean();
+      console.log("🔍 Sample booking from DB:", {
+        _id: sampleBooking?._id,
+        user: sampleBooking?.user,
+        host: sampleBooking?.host,
+        userType: typeof sampleBooking?.user,
+        hostType: typeof sampleBooking?.host
+      });
+    }
 
     const bookings = await Booking.find(query)
       .populate('vehicle', 'name images rent')
@@ -88,6 +119,11 @@ export const handleGetAllBooking = async (req: Request) => {
       .sort({ createdAt: -1 })
       .skip((pageNumber - 1) * limitNumber)
       .limit(limitNumber);
+
+    console.log("📝 handleGetAllBooking - Retrieved bookings:", bookings.length);
+    if (bookings.length > 0) {
+      console.log("📝 First booking:", bookings[0]);
+    }
 
     return {
       bookings,
@@ -99,14 +135,14 @@ export const handleGetAllBooking = async (req: Request) => {
       },
     };
   } catch (error) {
-    console.error("Get All Booking Error:", error);
+    console.error("❌ Get All Booking Error:", error);
     throw error;
   }
 };
 
-export const handleUserBookingStats = async (req: Request) => {
+export const handleUserBookingStats = async (req: AuthRequest) => {
   try {
-    const userId = (req as any).user?.id;
+    const userId = req.user?.id;
     if (!userId) {
       throw new Error("User not authenticated");
     }
@@ -188,9 +224,9 @@ export const handleUserBookingStats = async (req: Request) => {
   }
 };
 
-export const handleUserMonthlyRevenue = async (req: Request) => {
+export const handleUserMonthlyRevenue = async (req: AuthRequest) => {
   try {
-    const userId = (req as any).user?.id;
+    const userId = req.user?.id;
     if (!userId) {
       throw new Error("User not authenticated");
     }
