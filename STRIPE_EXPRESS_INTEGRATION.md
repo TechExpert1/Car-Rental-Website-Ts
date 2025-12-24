@@ -710,7 +710,8 @@ export default StripeService;
 ```env
 # Stripe Configuration
 STRIPE_SECRET_KEY="sk_test_xxx"
-STRIPE_WEBHOOK_SECRET="whsec_xxx"
+STRIPE_PLATFORM_WEBHOOK_SECRET="whsec_platform_xxx"  # for checkout/payment events
+STRIPE_CONNECT_WEBHOOK_SECRET="whsec_connect_xxx"    # for connected-account events
 STRIPE_CLIENT_ID="ca_xxx"
 
 # URLs
@@ -783,13 +784,15 @@ The User model stores these Stripe-related fields:
 
 1. Go to [Stripe Dashboard](https://dashboard.stripe.com)
 2. Enable **Connect** in settings
-3. Set up **Webhook endpoint**: `YOUR_SERVER_URL/api/payments/webhook`
-4. Add webhook events:
-   - `account.updated`
-   - `account.external_account.created`
-   - `account.external_account.updated`
-   - `capability.updated`
-5. Copy webhook signing secret to `STRIPE_WEBHOOK_SECRET`
+3. Set up **Webhook endpoints** (recommended: use two separate endpoints):
+   - Platform (Checkout / payment events): `YOUR_SERVER_URL/webhooks/platform`
+   - Connect (Connected account events): `YOUR_SERVER_URL/webhooks/connect`
+4. Add webhook events to the appropriate endpoint(s):
+   - Platform: `checkout.session.completed`, `payment_intent.succeeded`, `payment_intent.payment_failed`
+   - Connect: `account.updated`, `account.external_account.created`, `account.external_account.updated`, `capability.updated`
+5. Copy the signing secrets to the environment variables:
+   - `STRIPE_PLATFORM_WEBHOOK_SECRET` for the Platform endpoint
+   - `STRIPE_CONNECT_WEBHOOK_SECRET` for the Connect endpoint
 
 ---
 

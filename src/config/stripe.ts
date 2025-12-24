@@ -111,19 +111,15 @@ export const createSession = async (req: AuthRequest, res: Response) => {
   }
 };
 
-// ========================
-// Stripe Webhook (Handles both booking and connected account events)
-// ========================
-export const webhook = async (req: Request, res: Response) => {
+// ----------------------------
+// Platform / Checkout Webhook
+// ----------------------------
+export const platformWebhook = async (req: Request, res: Response) => {
   try {
-    console.log("========== WEBHOOK CALLED ==========");
-    console.log("📨 Raw webhook received");
-    
-    const sig = req.headers["stripe-signature"] as string | undefined;
-    const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET as string;
+    console.log("========== PLATFORM WEBHOOK CALLED ==========");
 
-    console.log("📝 Signature header present?:", !!sig);
-    console.log("📝 Endpoint secret present?:", !!endpointSecret);
+    const sig = req.headers["stripe-signature"] as string | undefined;
+    const endpointSecret = process.env.STRIPE_PLATFORM_WEBHOOK_SECRET as string;
 
     if (!sig) {
       console.error("❌ No stripe-signature header found");
@@ -131,46 +127,37 @@ export const webhook = async (req: Request, res: Response) => {
     }
 
     if (!endpointSecret) {
-      console.error("❌ STRIPE_WEBHOOK_SECRET not configured");
-      return res.status(400).send("Webhook secret not configured");
+      console.error("❌ STRIPE_PLATFORM_WEBHOOK_SECRET not configured");
+      return res.status(400).send("Platform webhook secret not configured");
     }
 
     let event: Stripe.Event;
     try {
       event = stripe.webhooks.constructEvent(req.body, sig, endpointSecret);
-      console.log("✅ Webhook signature verified");
+      console.log("✅ Platform webhook signature verified");
     } catch (err: any) {
-      console.error("❌ Webhook signature verification failed:", err.message);
+      console.error("❌ Platform webhook signature verification failed:", err.message);
       return res.status(400).send(`Webhook Error: ${err.message}`);
     }
 
-    console.log("📝 Event type:", event.type);
-    console.log("📝 Event ID:", event.id);
-  
-    // ==========================================
-    // BOOKING PAYMENT WEBHOOKS
-    // ==========================================
-    
+    console.log("📝 Platform event type:", event.type);
+
     // Handle checkout.session.completed events (booking payments)
     if (event.type === "checkout.session.completed") {
-      console.log("🎫 ✅✅✅ CHECKOUT SESSION COMPLETED! ✅✅✅");
+      console.log("🎫 ✅ CHECKOUT SESSION COMPLETED");
       const session = event.data.object as Stripe.Checkout.Session;
       const bookingId = session.metadata?.bookingId;
-      console.log("📝 Booking ID from metadata:", bookingId);
-      console.log("📝 Session ID:", session.id);
-      console.log("📝 Payment Intent:", session.payment_intent);
-      
+
       if (!bookingId) {
         console.error("❌ No bookingId in session metadata!");
         res.json({ received: true, error: "No bookingId in metadata" });
         return;
       }
-      
+
       try {
         const paymentIntent = await stripe.paymentIntents.retrieve(
           session.payment_intent as string
         );
-        console.log("💳 Payment Intent retrieved:", paymentIntent.id);
 
         const existingBooking = await Booking.findById(bookingId);
         if (!existingBooking) {
@@ -178,9 +165,8 @@ export const webhook = async (req: Request, res: Response) => {
           res.json({ received: true, error: "Booking not found" });
           return;
         }
-        console.log("✅ Found booking:", existingBooking._id);
 
-        const updatedBooking = await Booking.findByIdAndUpdate(
+        await Booking.findByIdAndUpdate(
           bookingId,
           {
             paymentIntentId: paymentIntent.id,
@@ -189,23 +175,74 @@ export const webhook = async (req: Request, res: Response) => {
           },
           { new: true }
         );
-        
-        console.log("✅✅✅ BOOKING UPDATED TO ACTIVE! ✅✅✅");
-        console.log("📝 New booking status:", updatedBooking?.bookingStatus);
+
+        console.log("✅ Booking marked as paid and active:", bookingId);
       } catch (err: any) {
         console.error("❌ Error during booking update:", err.message);
-        console.error("❌ Stack:", err.stack);
       }
-      
+
       res.json({ received: true });
       return;
     }
-    
-    // ==========================================
-    // CONNECTED ACCOUNT WEBHOOKS
-    // ==========================================
-    
-    console.log("📝 Processing event type:", event.type);
+
+    switch (event.type) {
+      case "payment_intent.succeeded": {
+        const pi = event.data.object as Stripe.PaymentIntent;
+        console.log("✅ PaymentIntent succeeded:", pi.id, "amount:", pi.amount);
+        break;
+      }
+
+      case "payment_intent.payment_failed": {
+        const pi = event.data.object as Stripe.PaymentIntent;
+        console.log("❌ PaymentIntent failed:", pi.id, "last_payment_error:", pi.last_payment_error);
+        break;
+      }
+
+      default:
+        console.log(`Unhandled platform event type: ${event.type}`);
+    }
+
+    res.json({ received: true });
+  } catch (err: any) {
+    console.error("❌ CRITICAL PLATFORM WEBHOOK ERROR:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// ----------------------------
+// Connect / Connected-Account Webhook
+// ----------------------------
+export const connectWebhook = async (req: Request, res: Response) => {
+  try {
+    console.log("========== CONNECT WEBHOOK CALLED ==========");
+
+    const sig = req.headers["stripe-signature"] as string | undefined;
+    const endpointSecret = process.env.STRIPE_CONNECT_WEBHOOK_SECRET as string;
+
+    if (!sig) {
+      console.error("❌ No stripe-signature header found");
+      return res.status(400).send("No stripe-signature header");
+    }
+
+    if (!endpointSecret) {
+      console.error("❌ STRIPE_CONNECT_WEBHOOK_SECRET not configured");
+      return res.status(400).send("Connect webhook secret not configured");
+    }
+
+    let event: Stripe.Event;
+    try {
+      event = stripe.webhooks.constructEvent(req.body, sig, endpointSecret);
+      console.log("✅ Connect webhook signature verified");
+    } catch (err: any) {
+      console.error("❌ Connect webhook signature verification failed:", err.message);
+      return res.status(400).send(`Webhook Error: ${err.message}`);
+    }
+
+    const connectedAccountId = req.headers["stripe-account"] as string | undefined;
+    if (connectedAccountId) {
+      console.log("Event received for connected account:", connectedAccountId);
+    }
+
     switch (event.type) {
       case "account.updated":
         console.log("👤 Account updated event");
@@ -227,18 +264,25 @@ export const webhook = async (req: Request, res: Response) => {
         await handleCapabilityUpdated(event.data.object);
         break;
 
+      case "payment_intent.succeeded": {
+        const pi = event.data.object as Stripe.PaymentIntent;
+        console.log("✅ Connected account PaymentIntent succeeded:", pi.id);
+        break;
+      }
+
       default:
-        console.log("ℹ️ Unhandled event type:", event.type);
+        console.log(`Unhandled connect event type: ${event.type}`);
     }
-    
-    console.log("========== END WEBHOOK ==========");
+
     res.json({ received: true });
   } catch (err: any) {
-    console.error("❌ CRITICAL WEBHOOK ERROR:", err.message);
-    console.error("❌ Stack:", err.stack);
+    console.error("❌ CRITICAL CONNECT WEBHOOK ERROR:", err.message);
     res.status(500).json({ error: err.message });
   }
 };
+
+// Backwards compatible alias
+export const webhook = platformWebhook;
 
 export const createConnectedAccount = async (req: Request, res: Response) => {
   const { email } = req.body;

@@ -11,7 +11,7 @@ import paymentRoutes from "./modules/payment/payment.routes";
 //import disputeRoutes from "./modules/dispute/dispute.routes";
 import ratingRoutes from "./modules/rating/rating.routes";
 import cors from "cors";
-import { webhook } from "./config/stripe";
+import { platformWebhook, connectWebhook } from "./config/stripe";
 import cron from "node-cron";
 import { processPendingPayouts } from "./services/scheduledPayout.service";
 import { autoReactivateVehicles } from "./services/vehicleReactivation.service";
@@ -30,18 +30,29 @@ app.use(cors({
 }));
 
 // Webhook routes need raw body for Stripe signature verification
-// This single endpoint handles ALL Stripe webhook events (both checkout and connected account)
+// We expose two endpoints: one for platform (checkout/payment) and one for Connect (connected-account) events
 app.post(
-  "/payment/webhook/connected-account",
+  "/webhooks/platform",
   express.raw({ type: "application/json" }),
   (req, res, next) => {
-    console.log("🚨🚨🚨 WEBHOOK ENDPOINT HIT! 🚨🚨🚨");
+    console.log("🚨 Platform webhook endpoint hit");
     console.log("📨 Method:", req.method);
     console.log("📨 URL:", req.url);
-    console.log("📨 Headers:", JSON.stringify(req.headers, null, 2));
     next();
   },
-  webhook
+  platformWebhook
+);
+
+app.post(
+  "/webhooks/connect",
+  express.raw({ type: "application/json" }),
+  (req, res, next) => {
+    console.log("🚨 Connect webhook endpoint hit");
+    console.log("📨 Method:", req.method);
+    console.log("📨 URL:", req.url);
+    next();
+  },
+  connectWebhook
 );
 
 // Test endpoint to verify routing

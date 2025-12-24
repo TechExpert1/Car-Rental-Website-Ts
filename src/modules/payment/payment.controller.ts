@@ -279,12 +279,22 @@ export const handleConnectedAccountWebhook = async (
   req: Request,
   res: Response
 ) => {
-  const sig = req.headers["stripe-signature"] as string;
-  const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET as string;
+  const sig = req.headers["stripe-signature"] as string | undefined;
+  const endpointSecret = process.env.STRIPE_CONNECT_WEBHOOK_SECRET as string | undefined;
 
-  let event;
-  console.log(" webhook secret function called ..... ");
+  console.log("🔔 handleConnectedAccountWebhook invoked");
 
+  if (!sig) {
+    console.error("❌ No stripe-signature header found");
+    return res.status(400).send("No stripe-signature header");
+  }
+
+  if (!endpointSecret) {
+    console.error("❌ STRIPE_CONNECT_WEBHOOK_SECRET not configured");
+    return res.status(400).send("Connect webhook secret not configured");
+  }
+
+  let event: Stripe.Event;
   try {
     event = stripe.webhooks.constructEvent(req.body, sig, endpointSecret);
   } catch (error: any) {

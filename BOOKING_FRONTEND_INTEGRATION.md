@@ -1173,7 +1173,8 @@ export default BookingService;
 ```env
 # Stripe Configuration
 STRIPE_SECRET_KEY="sk_test_xxx"
-STRIPE_WEBHOOK_SECRET="whsec_xxx"
+STRIPE_PLATFORM_WEBHOOK_SECRET="whsec_platform_xxx"
+STRIPE_CONNECT_WEBHOOK_SECRET="whsec_connect_xxx"
 
 # Redirect URLs after payment
 STRIPE_SUCCESS_REDIRECT="http://localhost:3000/booking/success"
@@ -1229,7 +1230,7 @@ NEXT_PUBLIC_API_URL="http://localhost:9716"
 ## Webhook Configuration
 
 Set up webhook in Stripe Dashboard:
-- **Endpoint:** `YOUR_SERVER_URL/bookings/webhook`
+- **Endpoint:** `YOUR_SERVER_URL/webhooks/platform`
 - **Events:** `checkout.session.completed`
 
 ---
@@ -1255,7 +1256,7 @@ Set up webhook in Stripe Dashboard:
 | Issue | Solution |
 |-------|----------|
 | Payment redirect not working | Check STRIPE_SUCCESS_REDIRECT and STRIPE_FAILURE_REDIRECT env vars |
-| Booking not updating after payment | Verify webhook endpoint and STRIPE_WEBHOOK_SECRET |
+| Booking not updating after payment | Verify webhook endpoint and `STRIPE_PLATFORM_WEBHOOK_SECRET` |
 | "Vehicle already booked" error | Check date overlap logic on frontend |
 | Cancellation refund failed | Ensure payment intent exists and is refundable |
 | Host payout not scheduled | Host must confirm booking via POST /bookings/confirm |
