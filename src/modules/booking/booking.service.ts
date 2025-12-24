@@ -64,10 +64,10 @@ export const handleGetAllBooking = async (req: Request) => {
 
     // Optional: filter by specific role if provided
     if (role === 'user') {
-      query.$or = undefined;
+      delete query.$or;  // Remove $or instead of setting to undefined
       query.user = new mongoose.Types.ObjectId(userId);
     } else if (role === 'host') {
-      query.$or = undefined;
+      delete query.$or;  // Remove $or instead of setting to undefined
       query.host = new mongoose.Types.ObjectId(userId);
     }
 
