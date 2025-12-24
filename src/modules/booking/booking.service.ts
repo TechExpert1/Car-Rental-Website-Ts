@@ -46,8 +46,10 @@ export const handleCancelBooking = async (req: AuthRequest) => {
 export const handleGetAllBooking = async (req: AuthRequest) => {
   try {
     const userId = req.user?.id;
-    console.log("📝 handleGetAllBooking - userId from request:", userId);
-    console.log("📝 handleGetAllBooking - req.user:", req.user);
+    console.log("========== GET BOOKINGS DEBUG ==========");
+    console.log("📝 userId type:", typeof userId);
+    console.log("📝 userId value:", userId);
+    console.log("📝 Full req.user:", req.user);
     
     if (!userId) {
       throw new Error("User not authenticated");
@@ -63,9 +65,18 @@ export const handleGetAllBooking = async (req: AuthRequest) => {
     console.log("📊 Bookings where user is renter:", userBookingsCount);
     console.log("📊 Bookings where user is host:", hostBookingsCount);
 
+    // Log all bookings to see what user/host IDs are actually stored
+    if (totalBookingsInDB > 0) {
+      const allBookings = await Booking.find({}).select('user host bookingStatus paymentStatus').lean();
+      console.log("📊 All bookings in DB (user/host/status):");
+      allBookings.forEach((b, idx) => {
+        console.log(`   [${idx}] user: ${b.user}, host: ${b.host}, status: ${b.bookingStatus}/${b.paymentStatus}`);
+      });
+    }
+
     let { page = 1, limit = 10, role, ...filters } = req.query;
-    console.log("📝 handleGetAllBooking - role:", role);
-    console.log("📝 handleGetAllBooking - filters:", filters);
+    console.log("📝 role:", role);
+    console.log("📝 filters:", filters);
 
     const pageNumber = parseInt(page as string, 10);
     const limitNumber = parseInt(limit as string, 10);
@@ -80,11 +91,13 @@ export const handleGetAllBooking = async (req: AuthRequest) => {
 
     // Optional: filter by specific role if provided
     if (role === 'user') {
-      delete query.$or;  // Remove $or instead of setting to undefined
+      delete query.$or;
       query.user = new mongoose.Types.ObjectId(userId);
+      console.log("🔍 Filtering by RENTER role");
     } else if (role === 'host') {
-      delete query.$or;  // Remove $or instead of setting to undefined
+      delete query.$or;
       query.host = new mongoose.Types.ObjectId(userId);
+      console.log("🔍 Filtering by HOST role");
     }
 
     // Handle bookingStatus filter separately (exact match, not regex)
@@ -94,7 +107,7 @@ export const handleGetAllBooking = async (req: AuthRequest) => {
       if (validStatuses.includes(status)) {
         query.bookingStatus = status;
       }
-      delete filters.bookingStatus; // Remove from filters to avoid regex processing
+      delete filters.bookingStatus;
     }
 
     // Handle paymentStatus filter separately (exact match, not regex)
@@ -104,7 +117,7 @@ export const handleGetAllBooking = async (req: AuthRequest) => {
       if (validStatuses.includes(status)) {
         query.paymentStatus = status;
       }
-      delete filters.paymentStatus; // Remove from filters to avoid regex processing
+      delete filters.paymentStatus;
     }
 
     // Apply additional filters (regex-based for string fields)
@@ -115,22 +128,10 @@ export const handleGetAllBooking = async (req: AuthRequest) => {
       }
     });
 
-    console.log("📝 handleGetAllBooking - MongoDB query:", JSON.stringify(query, null, 2));
+    console.log("📝 Final MongoDB query:", JSON.stringify(query, null, 2));
 
     const total = await Booking.countDocuments(query);
-    console.log("📝 handleGetAllBooking - Total bookings matching query:", total);
-
-    // Get a sample booking to compare IDs
-    if (totalBookingsInDB > 0) {
-      const sampleBooking = await Booking.findOne({}).lean();
-      console.log("🔍 Sample booking from DB:", {
-        _id: sampleBooking?._id,
-        user: sampleBooking?.user,
-        host: sampleBooking?.host,
-        userType: typeof sampleBooking?.user,
-        hostType: typeof sampleBooking?.host
-      });
-    }
+    console.log("📊 Bookings matching query:", total);
 
     const bookings = await Booking.find(query)
       .populate('vehicle', 'name images rent')
@@ -140,10 +141,8 @@ export const handleGetAllBooking = async (req: AuthRequest) => {
       .skip((pageNumber - 1) * limitNumber)
       .limit(limitNumber);
 
-    console.log("📝 handleGetAllBooking - Retrieved bookings:", bookings.length);
-    if (bookings.length > 0) {
-      console.log("📝 First booking:", bookings[0]);
-    }
+    console.log("📝 Retrieved bookings:", bookings.length);
+    console.log("========== END DEBUG ==========");
 
     return {
       bookings,
