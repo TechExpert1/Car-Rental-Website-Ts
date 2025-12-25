@@ -99,6 +99,7 @@ This guide covers the complete frontend integration for the car rental booking s
       },
       "host": {
         "_id": "64host123id",
+        "username": "janehost",
         "name": "Jane Host",
         "email": "jane@example.com"
       },
@@ -706,7 +707,7 @@ export default function MyBookings() {
                   <div>
                     <h3 className="text-lg font-semibold">{booking.vehicle.name}</h3>
                     <p className="text-gray-500 text-sm">
-                      {role === 'user' ? `Host: ${booking.host.name}` : `Renter: ${booking.user.name}`}
+                      {role === 'user' ? `Host: ${booking.host.username || booking.host.name || booking.host.email}` : `Renter: ${booking.user.username || booking.user.name || booking.user.email}`}
                     </p>
                   </div>
                   <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusBadge(booking.bookingStatus)}`}>
@@ -925,6 +926,42 @@ export default function CancelBookingModal({ bookingId, canceledBy, onClose, onS
   );
 }
 ```
+
+---
+
+### Reviews
+
+**Create review (with media uploads)**
+
+- **Endpoint:** `POST /reviews`
+- **Auth:** `userAuth` required
+- **Content-Type:** `multipart/form-data` (use `FormData` on the frontend)
+- **Fields:**
+  - `vehicle` (string, required) — vehicle id
+  - `text` (string, required) — review text
+  - `name` (string, optional) — reviewer name (defaults to authenticated username)
+  - `email` (string, optional) — reviewer email (defaults to authenticated email)
+  - `media` (file[], optional) — images or other media files (multiple allowed)
+
+**Example (frontend using fetch + FormData):**
+
+```ts
+const formData = new FormData();
+formData.append('vehicle', vehicleId);
+formData.append('text', 'Great car, smooth ride');
+formData.append('name', 'Alice');
+formData.append('media', fileInput.files[0]);
+formData.append('media', fileInput.files[1]);
+
+await fetch(`${process.env.NEXT_PUBLIC_API_URL}/reviews`, {
+  method: 'POST',
+  headers: { 'Authorization': `Bearer ${token}` },
+  body: formData,
+});
+```
+
+**Response:**
+- 201 with `{ message: 'Review created successfully', review: {...} }`
 
 ---
 

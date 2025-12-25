@@ -17,23 +17,31 @@ describe("Review Service", () => {
 
   describe("handleCreateReview", () => {
     it("should create a review successfully", async () => {
-      const mockReq: any = { body: { rating: 5, comment: "Excellent!" } };
+      const mockReq: any = {
+        user: { id: 'user123', name: 'User One', email: 'user@example.com' },
+        body: { vehicle: 'veh1', text: 'Great ride', name: 'User One' },
+        fileUrls: { media: ['https://bucket/uploads/img1.jpg'] },
+      };
 
       (Review.create as jest.Mock).mockResolvedValue({
         _id: "rev123",
-        rating: 5,
-        comment: "Excellent!",
+        vehicle: 'veh1',
+        text: 'Great ride',
       });
 
       const result = await handleCreateReview(mockReq);
 
-      expect(Review.create).toHaveBeenCalledWith({
-        rating: 5,
-        comment: "Excellent!",
-      });
+      expect(Review.create).toHaveBeenCalledWith(expect.objectContaining({
+        user: 'user123',
+        vehicle: 'veh1',
+        text: 'Great ride',
+        name: 'User One',
+        email: 'user@example.com',
+        media: ['https://bucket/uploads/img1.jpg'],
+      }));
       expect(result).toEqual({
         message: "Review created successfully",
-        review: { _id: "rev123", rating: 5, comment: "Excellent!" },
+        review: { _id: "rev123", vehicle: 'veh1', text: 'Great ride' },
       });
     });
   });

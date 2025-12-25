@@ -1,9 +1,38 @@
 import { Request } from "express";
 import Review, { IReview } from "./review.model";
 import AuthRequest from "../../middlewares/userAuth";
-export const handleCreateReview = async (req: Request) => {
+export const handleCreateReview = async (req: AuthRequest) => {
   try {
-    const review = await Review.create(req.body);
+    const userId = req.user?.id;
+    if (!userId) throw new Error("User not authenticated");
+
+    const { vehicle, text } = req.body as { vehicle?: string; text?: string };
+
+    if (!vehicle) throw new Error("vehicle is required");
+    if (!text) throw new Error("text is required");
+
+    // Collect media URLs from both form fields and uploaded S3 files
+    const mediaFromBody: string[] = Array.isArray(req.body.media)
+      ? req.body.media
+      : req.body.media
+      ? [req.body.media]
+      : [];
+
+    const uploadedFilesMap = req.fileUrls || {};
+    const uploadedFiles: string[] = Object.values(uploadedFilesMap).flat();
+
+    const media = [...mediaFromBody, ...uploadedFiles];
+
+    const reviewData: Partial<IReview> = {
+      user: userId as any,
+      vehicle: vehicle as any,
+      text: text as any,
+      name: (req.body.name as string) || (req.user?.username as string) || (req.user?.email as string) || "",
+      email: (req.body.email as string) || (req.user?.email as string) || "",
+      media,
+    };
+
+    const review = await Review.create(reviewData);
     return { message: "Review created successfully", review };
   } catch (error) {
     console.error("Create Review Error:", error);
