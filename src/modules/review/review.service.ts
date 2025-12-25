@@ -1,6 +1,8 @@
 import { Request } from "express";
+import mongoose from "mongoose";
 import Review, { IReview } from "./review.model";
 import AuthRequest from "../../middlewares/userAuth";
+import Vehicle from "../vehicle/vehicle.model";
 export const handleCreateReview = async (req: AuthRequest) => {
   try {
     const userId = req.user?.id;
@@ -24,8 +26,8 @@ export const handleCreateReview = async (req: AuthRequest) => {
     const media = [...mediaFromBody, ...uploadedFiles];
 
     const reviewData: Partial<IReview> = {
-      user: userId as any,
-      vehicle: vehicle as any,
+      user: new mongoose.Types.ObjectId(userId) as any,
+      vehicle: new mongoose.Types.ObjectId(vehicle) as any,
       text: text as any,
       name: (req.body.name as string) || (req.user?.username as string) || (req.user?.email as string) || "",
       email: (req.body.email as string) || (req.user?.email as string) || "",
@@ -36,6 +38,74 @@ export const handleCreateReview = async (req: AuthRequest) => {
     return { message: "Review created successfully", review };
   } catch (error) {
     console.error("Create Review Error:", error);
+    throw error;
+  }
+};
+
+export const handleGetAllReviews = async (req: Request) => {
+  try {
+    let { page = 1, limit = 10, vehicle, mine, ...filters } = req.query;
+    const pageNumber = parseInt(page as string, 10);
+    const limitNumber = parseInt(limit as string, 10);
+
+    const query: Record<string, any> = {};
+
+    // Exact filter by vehicle id if provided
+    if (vehicle) {
+      try {
+        query.vehicle = new mongoose.Types.ObjectId(vehicle as string);
+      } catch (err) {
+        throw new Error("Invalid vehicle id");
+      }
+    }
+
+    // If `mine=true` or route is `/mine`, return reviews for the authenticated user
+    if (mine === 'true' || (req as any).path && (req as any).path.includes('/mine')) {
+      const authReq = req as AuthRequest;
+      const userId = authReq.user?.id;
+      if (!userId) throw new Error('Authentication required for mine=true');
+
+      // If host, return reviews for all vehicles owned by host
+      if (authReq.user?.role === 'host') {
+        const vehicles = await Vehicle.find({ host: userId }).select('_id');
+        const vehicleIds = vehicles.map((v: any) => v._id);
+        // If host has no vehicles, return empty set
+        if (vehicleIds.length === 0) {
+          return { reviews: [], pagination: { total: 0, page: pageNumber, limit: limitNumber, totalPages: 0 } };
+        }
+        query.vehicle = { $in: vehicleIds };
+      } else {
+        // Customer: return reviews created by this user
+        query.user = new mongoose.Types.ObjectId(userId);
+      }
+    }
+
+    // Apply additional filters (regex-based for string fields)
+    Object.keys(filters).forEach((key) => {
+      const value = filters[key] as string;
+      if (value && key !== 'page' && key !== 'limit') {
+        query[key] = { $regex: value, $options: "i" };
+      }
+    });
+
+    const total = await Review.countDocuments(query);
+    const reviews = await Review.find(query)
+      .skip((pageNumber - 1) * limitNumber)
+      .limit(limitNumber)
+      .populate("user", "name email")
+      .populate("vehicle", "name");
+
+    return {
+      reviews,
+      pagination: {
+        total,
+        page: pageNumber,
+        limit: limitNumber,
+        totalPages: Math.ceil(total / limitNumber),
+      },
+    };
+  } catch (error) {
+    console.error("Get All Reviews Error:", error);
     throw error;
   }
 };
@@ -83,36 +153,4 @@ export const handleGetByIdReview = async (req: AuthRequest) => {
   }
 };
 
-export const handleGetAllReviews = async (req: Request) => {
-  try {
-    let { page = 1, limit = 10, ...filters } = req.query;
-    const pageNumber = parseInt(page as string, 10);
-    const limitNumber = parseInt(limit as string, 10);
 
-    const query: Record<string, any> = {};
-    Object.keys(filters).forEach((key) => {
-      const value = filters[key] as string;
-      if (value) query[key] = { $regex: value, $options: "i" };
-    });
-
-    const total = await Review.countDocuments(query);
-    const reviews = await Review.find(query)
-      .skip((pageNumber - 1) * limitNumber)
-      .limit(limitNumber)
-      .populate("user", "name email") // optional
-      .populate("vehicle", "name"); // optional
-
-    return {
-      reviews,
-      pagination: {
-        total,
-        page: pageNumber,
-        limit: limitNumber,
-        totalPages: Math.ceil(total / limitNumber),
-      },
-    };
-  } catch (error) {
-    console.error("Get All Reviews Error:", error);
-    throw error;
-  }
-};

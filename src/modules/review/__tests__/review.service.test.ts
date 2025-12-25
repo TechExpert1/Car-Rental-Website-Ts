@@ -1,5 +1,6 @@
 // src/modules/review/__tests__/review.service.test.ts
 import Review from "../review.model";
+import Vehicle from "../../vehicle/vehicle.model";
 import {
   handleCreateReview,
   handleUpdateReview,
@@ -9,6 +10,7 @@ import {
 } from "../review.service";
 
 jest.mock("../review.model");
+jest.mock("../../vehicle/vehicle.model");
 
 describe("Review Service", () => {
   afterEach(() => {
@@ -164,6 +166,59 @@ describe("Review Service", () => {
       expect(result.pagination.total).toBe(2);
       expect(result.reviews).toHaveLength(2);
       expect(result.reviews[0]).toEqual({ _id: "rev1", comment: "Nice" });
+    });
+
+    it("should filter reviews by vehicle id", async () => {
+      const mockReq: any = { query: { vehicle: 'veh1', page: '1', limit: '10' } };
+
+      (Review.countDocuments as jest.Mock).mockResolvedValue(1);
+
+      (Review.find as jest.Mock).mockReturnValue({
+        skip: jest.fn().mockReturnThis(),
+        limit: jest.fn().mockReturnThis(),
+        populate: jest.fn().mockResolvedValue([{ _id: 'rev1', vehicle: 'veh1' }]),
+      });
+
+      const result = await handleGetAllReviews(mockReq);
+
+      expect(Review.find).toHaveBeenCalled();
+      expect(result.reviews[0]).toEqual({ _id: 'rev1', vehicle: 'veh1' });
+    });
+
+    it("should return authenticated user's reviews (customer)", async () => {
+      const mockReq: any = { query: { mine: 'true', page: '1', limit: '10' }, user: { id: 'user123', role: 'customer' } };
+
+      (Review.countDocuments as jest.Mock).mockResolvedValue(1);
+
+      (Review.find as jest.Mock).mockReturnValue({
+        skip: jest.fn().mockReturnThis(),
+        limit: jest.fn().mockReturnThis(),
+        populate: jest.fn().mockResolvedValue([{ _id: 'rev2', user: 'user123' }]),
+      });
+
+      const result = await handleGetAllReviews(mockReq);
+
+      expect(Review.find).toHaveBeenCalled();
+      expect(result.reviews[0]).toEqual({ _id: 'rev2', user: 'user123' });
+    });
+
+    it("should return host's vehicle reviews when authenticated as host", async () => {
+      const mockReq: any = { query: { mine: 'true', page: '1', limit: '10' }, user: { id: 'host123', role: 'host' } };
+
+      // Mock Vehicle.find to return vehicle list
+      (Vehicle.find as jest.Mock).mockResolvedValue([{ _id: 'v1' }]);
+
+      (Review.countDocuments as jest.Mock).mockResolvedValue(1);
+      (Review.find as jest.Mock).mockReturnValue({
+        skip: jest.fn().mockReturnThis(),
+        limit: jest.fn().mockReturnThis(),
+        populate: jest.fn().mockResolvedValue([{ _id: 'rev3', vehicle: 'v1' }]),
+      });
+
+      const result = await handleGetAllReviews(mockReq);
+
+      expect(Review.find).toHaveBeenCalled();
+      expect(result.reviews[0]).toEqual({ _id: 'rev3', vehicle: 'v1' });
     });
   });
 });
