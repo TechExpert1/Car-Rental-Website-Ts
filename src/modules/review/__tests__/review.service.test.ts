@@ -157,8 +157,8 @@ describe("Review Service", () => {
 
       // ✅ handle chained .populate()
       const mockPopulateVehicle = jest.fn().mockResolvedValue([
-        { _id: "rev1", comment: "Nice" },
-        { _id: "rev2", comment: "Good" },
+        { _id: "rev1", comment: "Nice", user: { name: 'User A', image: 'https://img' } },
+        { _id: "rev2", comment: "Good", user: { name: 'User B', image: 'https://img2' } },
       ]);
 
       const mockPopulateUser = jest.fn().mockReturnValue({
@@ -176,7 +176,7 @@ describe("Review Service", () => {
       expect(Review.find).toHaveBeenCalled();
       expect(result.pagination.total).toBe(2);
       expect(result.reviews).toHaveLength(2);
-      expect(result.reviews[0]).toEqual({ _id: "rev1", comment: "Nice" });
+      expect(result.reviews[0].user).toEqual({ name: 'User A', image: 'https://img' });
     });
 
     it("should filter reviews by vehicle id", async () => {

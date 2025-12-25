@@ -112,8 +112,8 @@ export const handleGetAllReviews = async (req: Request) => {
     const reviews = await Review.find(query)
       .skip((pageNumber - 1) * limitNumber)
       .limit(limitNumber)
-      .populate("user", "name email")
-      .populate("vehicle", "name");
+      .populate("user", "name email image username")
+      .populate("vehicle", "name images");
 
     return {
       reviews,
@@ -164,7 +164,9 @@ export const handleDeleteReview = async (req: AuthRequest) => {
 export const handleGetByIdReview = async (req: AuthRequest) => {
   try {
     const { id } = req.params;
-    const review = await Review.findById(id);
+    const review = await Review.findById(id)
+      .populate('user', 'name email image username')
+      .populate('vehicle', 'name images');
     if (!review) throw new Error("Review not found");
     return { message: "Review Fetched successfully", review };
   } catch (error) {
