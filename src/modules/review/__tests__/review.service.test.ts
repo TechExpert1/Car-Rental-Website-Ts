@@ -21,7 +21,14 @@ describe("Review Service", () => {
     it("should create a review successfully", async () => {
       const mockReq: any = {
         user: { id: 'user123', name: 'User One', email: 'user@example.com' },
-        body: { vehicle: 'veh1', text: 'Great ride', name: 'User One' },
+        body: {
+          vehicle: 'veh1',
+          text: 'Great ride',
+          name: 'User One',
+          conditionAccuracy: '4',
+          pickupEase: '3',
+          communication: 4,
+        },
         fileUrls: { media: ['https://bucket/uploads/img1.jpg'] },
       };
 
@@ -40,6 +47,10 @@ describe("Review Service", () => {
         name: 'User One',
         email: 'user@example.com',
         media: ['https://bucket/uploads/img1.jpg'],
+        conditionAccuracy: 4,
+        pickupEase: 3,
+        communication: 4,
+        rating: 3.67,
       }));
       expect(result).toEqual({
         message: "Review created successfully",

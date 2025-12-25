@@ -25,6 +25,22 @@ export const handleCreateReview = async (req: AuthRequest) => {
 
     const media = [...mediaFromBody, ...uploadedFiles];
 
+    // Parse and validate numeric rating fields (optional, but must be 0-5 if provided)
+    const parseRating = (val: any): number | undefined => {
+      if (val === undefined || val === null || val === '') return undefined;
+      const n = Number(val);
+      if (Number.isNaN(n) || n < 0 || n > 5) throw new Error('Rating values must be numbers between 0 and 5');
+      return n;
+    };
+
+    const conditionAccuracy = parseRating(req.body.conditionAccuracy);
+    const pickupEase = parseRating(req.body.pickupEase);
+    const communication = parseRating(req.body.communication);
+
+    // Compute overall rating average of provided aspects
+    const ratingValues = [conditionAccuracy, pickupEase, communication].filter((v) => typeof v === 'number') as number[];
+    const rating = ratingValues.length > 0 ? Number((ratingValues.reduce((a, b) => a + b, 0) / ratingValues.length).toFixed(2)) : undefined;
+
     const reviewData: Partial<IReview> = {
       user: new mongoose.Types.ObjectId(userId) as any,
       vehicle: new mongoose.Types.ObjectId(vehicle) as any,
@@ -32,6 +48,10 @@ export const handleCreateReview = async (req: AuthRequest) => {
       name: (req.body.name as string) || (req.user?.username as string) || (req.user?.email as string) || "",
       email: (req.body.email as string) || (req.user?.email as string) || "",
       media,
+      conditionAccuracy,
+      pickupEase,
+      communication,
+      rating,
     };
 
     const review = await Review.create(reviewData);

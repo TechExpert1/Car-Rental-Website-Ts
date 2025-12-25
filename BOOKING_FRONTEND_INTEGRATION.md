@@ -941,6 +941,10 @@ export default function CancelBookingModal({ bookingId, canceledBy, onClose, onS
   - `text` (string, required) — review text
   - `name` (string, optional) — reviewer name (defaults to authenticated username)
   - `email` (string, optional) — reviewer email (defaults to authenticated email)
+  - Ratings (numbers 0-5, optional):
+    - `conditionAccuracy` — Combined Car Condition & Accuracy (0-5)
+    - `pickupEase` — Ease of pickup/drop-off (0-5)
+    - `communication` — Host communication (0-5)
   - `media` (file[], optional) — images or other media files (multiple allowed)
 
 **Example (frontend using fetch + FormData):**
