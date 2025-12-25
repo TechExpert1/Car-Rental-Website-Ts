@@ -10,11 +10,13 @@ import paymentRoutes from "./modules/payment/payment.routes";
 //import adminRoutes from "./modules/admin/admin.router";
 //import disputeRoutes from "./modules/dispute/dispute.routes";
 import ratingRoutes from "./modules/rating/rating.routes";
+import notificationRoutes from "./modules/notifications/notification.routes";
 import cors from "cors";
 import { platformWebhook, connectWebhook } from "./config/stripe";
 import cron from "node-cron";
 import { processPendingPayouts } from "./services/scheduledPayout.service";
 import { autoReactivateVehicles } from "./services/vehicleReactivation.service";
+import { runNotificationChecks } from "./services/notificationScheduler.service";
 
 const app = express();
 
@@ -75,6 +77,7 @@ app.use("/payment", paymentRoutes);
 //app.use("/admin", adminRoutes);
 //app.use("/disputes", disputeRoutes);
 app.use("/ratings", ratingRoutes);
+app.use("/notifications", notificationRoutes);
 
 // ========================
 // Initialize Cron Jobs
@@ -98,6 +101,16 @@ cron.schedule("*/30 * * * *", async () => {
     await autoReactivateVehicles();
   } catch (error: any) {
     console.error("❌ Error in vehicle reactivation cron job:", error.message);
+  }
+});
+
+// Run hourly to check for upcoming pickup/dropoff notifications
+cron.schedule("0 * * * *", async () => {
+  console.log("🔔 Running notification scheduler checks...");
+  try {
+    await runNotificationChecks();
+  } catch (error: any) {
+    console.error("❌ Error running notification scheduler:", error.message);
   }
 });
 

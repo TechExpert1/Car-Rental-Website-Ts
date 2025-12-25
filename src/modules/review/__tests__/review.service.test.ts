@@ -38,6 +38,12 @@ describe("Review Service", () => {
         text: 'Great ride',
       });
 
+      // Mock Vehicle.findById to return a host
+      (Vehicle.findById as jest.Mock).mockResolvedValue({ host: 'host123', name: 'Car A' });
+
+      // Mock createNotification to be a no-op
+      jest.mock('../notifications/notification.service', () => ({ createNotification: jest.fn() }));
+
       const result = await handleCreateReview(mockReq);
 
       expect(Review.create).toHaveBeenCalledWith(expect.objectContaining({

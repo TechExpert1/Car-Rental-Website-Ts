@@ -30,6 +30,10 @@ export interface IBooking extends Document {
   payoutProcessedAt?: Date;
   payoutTransferId?: string;
 
+  // Notification flags
+  notifiedPickup?: boolean;
+  notifiedDropoff?: boolean;
+
   createdAt: Date;
   updatedAt: Date;
 }
@@ -82,6 +86,10 @@ const bookingSchema: Schema<IBooking> = new Schema<IBooking>(
     },
     payoutProcessedAt: { type: Date },
     payoutTransferId: { type: String },
+
+    // Notification flags to avoid duplicate alerts
+    notifiedPickup: { type: Boolean, default: false },
+    notifiedDropoff: { type: Boolean, default: false },
   },
   { timestamps: true }
 );

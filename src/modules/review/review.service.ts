@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 import Review, { IReview } from "./review.model";
 import AuthRequest from "../../middlewares/userAuth";
 import Vehicle from "../vehicle/vehicle.model";
+import { createNotification } from "../notifications/notification.service";
 export const handleCreateReview = async (req: AuthRequest) => {
   try {
     const userId = req.user?.id;
@@ -55,6 +56,23 @@ export const handleCreateReview = async (req: AuthRequest) => {
     };
 
     const review = await Review.create(reviewData);
+
+    // Notify host about the new review
+    try {
+      const vehicleDoc: any = await Vehicle.findById(vehicle).select("host name");
+      if (vehicleDoc && vehicleDoc.host) {
+        const hostId = vehicleDoc.host.toString();
+        const reviewer = (req.user?.username as string) || (req.user?.email as string) || 'A user';
+        const title = 'New review received';
+        const message = `${reviewer} left a review on your vehicle ${vehicleDoc.name}`;
+        // Fire and forget
+        const reviewId = (review as any)._id ? (review as any)._id.toString() : undefined;
+        createNotification(hostId, 'review_received', title, message, { reviewId, vehicleId: vehicle });
+      }
+    } catch (notifyErr) {
+      console.error("Failed to notify host about new review:", notifyErr);
+    }
+
     return { message: "Review created successfully", review };
   } catch (error) {
     console.error("Create Review Error:", error);
