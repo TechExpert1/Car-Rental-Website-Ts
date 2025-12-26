@@ -12,6 +12,7 @@ import { stripe } from "../../config/stripe";
 import { refundPayment } from "../../utils/booking";
 import AuthRequest from "../../middlewares/userAuth";
 import { calculatePayoutDate } from "../../services/scheduledPayout.service";
+import { createNotification } from "../notifications/notification.service";
 //import { calculateSecurityDeposit } from "../../services/securityDeposit.service";
 
 export const updateBooking = async (
@@ -158,22 +159,22 @@ export const cancelBooking = async (
       hostPayoutAmount = 0;
 
 
-        const penaltyAmount = booking.totalAmount * 0.1;
-        platformFeeAmount = penaltyAmount;
+      const penaltyAmount = booking.totalAmount * 0.1;
+      platformFeeAmount = penaltyAmount;
 
-        // Update host's pending penalty
-        const hostId = typeof booking.host === 'object' && (booking.host as any)._id
-          ? (booking.host as any)._id
-          : booking.host;
-        const host = await User.findById(hostId);
-        if (host) {
-          host.pendingPenaltyAmount = (host.pendingPenaltyAmount || 0) + penaltyAmount;
-          host.totalCancellations = (host.totalCancellations || 0) + 1;
-          await host.save();
-        }
+      // Update host's pending penalty
+      const hostId = typeof booking.host === 'object' && (booking.host as any)._id
+        ? (booking.host as any)._id
+        : booking.host;
+      const host = await User.findById(hostId);
+      if (host) {
+        host.pendingPenaltyAmount = (host.pendingPenaltyAmount || 0) + penaltyAmount;
+        host.totalCancellations = (host.totalCancellations || 0) + 1;
+        await host.save();
+      }
 
-        message = `Host cancellation before 48 hours. Full refund to guest. 10% penalty ($${penaltyAmount.toFixed(2)}) will be deducted from host's next payout.`;
-      
+      message = `Host cancellation before 48 hours. Full refund to guest. 10% penalty ($${penaltyAmount.toFixed(2)}) will be deducted from host's next payout.`;
+
     }
     // ========================
     // ADMIN CANCELLATION LOGIC
@@ -252,6 +253,61 @@ export const cancelBooking = async (
     booking.refundProcessedAt = refundAmount > 0 ? now : undefined;
 
     await booking.save();
+
+    // Send cancellation notifications to both user and host
+    try {
+      const bookingUserName = typeof booking.user === 'object' && (booking.user as any).name
+        ? (booking.user as any).name
+        : 'Guest';
+      const bookingHostName = typeof booking.host === 'object' && (booking.host as any).name
+        ? (booking.host as any).name
+        : 'Host';
+
+      // Notify the user (renter) about cancellation
+      const userMessage = canceledBy === 'user'
+        ? `Your booking has been cancelled. ${message}`
+        : canceledBy === 'host'
+          ? `Your booking has been cancelled by the host. ${message}`
+          : `Your booking has been cancelled by admin. ${message}`;
+
+      await createNotification(
+        bookingUserId,
+        'booking_cancelled',
+        'Booking Cancelled',
+        userMessage,
+        {
+          bookingId: booking._id.toString(),
+          canceledBy,
+          refundAmount,
+          refundPercentage,
+        }
+      );
+
+      // Notify the host about cancellation
+      const hostMessage = canceledBy === 'host'
+        ? `You have cancelled the booking. ${message}`
+        : canceledBy === 'user'
+          ? `A booking has been cancelled by the guest (${bookingUserName}). ${message}`
+          : `A booking has been cancelled by admin. ${message}`;
+
+      await createNotification(
+        bookingHostId,
+        'booking_cancelled',
+        'Booking Cancelled',
+        hostMessage,
+        {
+          bookingId: booking._id.toString(),
+          canceledBy,
+          refundAmount,
+          hostPayoutAmount,
+        }
+      );
+
+      console.log(`📧 Cancellation notifications sent for booking ${id}`);
+    } catch (notifError) {
+      console.error('Failed to send cancellation notifications:', notifError);
+      // Don't fail the cancellation if notifications fail
+    }
 
     res.status(200).json({
       success: true,
@@ -485,6 +541,38 @@ export const createBooking = async (
         insuranceFee,
         transactionFee,
       });
+
+      // Send notification to host about new booking
+      try {
+        const hostIdStr = typeof hostId === 'object' && (hostId as any)._id
+          ? (hostId as any)._id.toString()
+          : hostId.toString();
+
+        const user = await User.findById(userId);
+        const userName = user?.name || user?.username || 'A guest';
+
+        await createNotification(
+          hostIdStr,
+          'new_booking',
+          'New Booking Received',
+          `${userName} has booked your ${vehicle.name} from ${pickup.toLocaleDateString()} to ${dropoff.toLocaleDateString()}. Total: $${totalAmount.toFixed(2)}`,
+          {
+            bookingId: booking._id.toString(),
+            vehicleId: vehicleId,
+            vehicleName: vehicle.name,
+            guestName: userName,
+            pickupDate: pickup,
+            dropoffDate: dropoff,
+            totalAmount,
+            totalDays,
+          }
+        );
+
+        console.log(`📧 New booking notification sent to host for booking ${booking._id}`);
+      } catch (notifError) {
+        console.error('Failed to send new booking notification to host:', notifError);
+        // Don't fail the booking creation if notification fails
+      }
 
       res.status(201).json({
         success: true,
