@@ -2,6 +2,7 @@ import Booking from "../modules/booking/booking.model";
 import User from "../modules/auth/auth.model";
 import { stripe } from "../config/stripe";
 import { PAYOUT_DELAY_DAYS, PLATFORM_FEE_PERCENTAGE } from "../config/payout.config";
+import { createNotification } from "../modules/notifications/notification.service";
 
 /**
  * Calculate the scheduled payout date based on booking confirmation
@@ -65,7 +66,7 @@ export const processScheduledPayout = async (bookingId: string): Promise<any> =>
     const hostId = typeof booking.host === 'object' && (booking.host as any)._id
       ? (booking.host as any)._id
       : booking.host;
-    
+
     const host = await User.findById(hostId);
 
     if (!host) {
@@ -114,6 +115,26 @@ export const processScheduledPayout = async (bookingId: string): Promise<any> =>
 
     console.log(`✅ Payout processed successfully for booking ${bookingId}. Amount: $${hostPayout}`);
 
+    // Send payout notification to host
+    try {
+      await createNotification(
+        (host._id as any).toString(),
+        'payout_received',
+        'Payout Received',
+        `You have received a payout of $${hostPayout.toFixed(2)} for your completed booking. The funds have been transferred to your connected Stripe account.`,
+        {
+          bookingId: bookingId.toString(),
+          payoutAmount: hostPayout,
+          transferId: transfer.id,
+          processedAt: new Date(),
+        }
+      );
+      console.log(`📧 Payout notification sent to host for booking ${bookingId}`);
+    } catch (notifError) {
+      console.error('Failed to send payout notification to host:', notifError);
+      // Don't fail the payout if notification fails
+    }
+
     return {
       success: true,
       message: "Payout processed successfully",
@@ -128,7 +149,7 @@ export const processScheduledPayout = async (bookingId: string): Promise<any> =>
     };
   } catch (error: any) {
     console.error(`❌ Error processing payout for booking ${bookingId}:`, error.message);
-    
+
     // Update booking status to failed
     try {
       await Booking.findByIdAndUpdate(bookingId, {

@@ -194,6 +194,26 @@ export const cancelBooking = async (
       try {
         await refundPayment(booking.paymentIntentId, refundAmount);
         refundStatus = "processed";
+
+        // Send refund notification to customer
+        try {
+          await createNotification(
+            bookingUserId,
+            'refund_processed',
+            'Refund Processed',
+            `Your refund of $${refundAmount.toFixed(2)} (${refundPercentage}% of booking amount) has been processed. It may take 5-10 business days to appear in your account.`,
+            {
+              bookingId: booking._id.toString(),
+              refundAmount,
+              refundPercentage,
+              originalAmount: booking.totalAmount,
+            }
+          );
+          console.log(`📧 Refund notification sent to customer for booking ${id}`);
+        } catch (notifError) {
+          console.error('Failed to send refund notification:', notifError);
+          // Don't fail the cancellation if notification fails
+        }
       } catch (refundError: any) {
         console.error("Refund failed:", refundError.message);
         res.status(500).json({
@@ -569,8 +589,27 @@ export const createBooking = async (
         );
 
         console.log(`📧 New booking notification sent to host for booking ${booking._id}`);
+
+        // Also send confirmation notification to customer
+        await createNotification(
+          userId.toString(),
+          'booking_confirmed',
+          'Booking Confirmed',
+          `Your booking for ${vehicle.name} has been confirmed! Pickup: ${pickup.toLocaleDateString()}, Dropoff: ${dropoff.toLocaleDateString()}. Total: $${totalAmount.toFixed(2)}`,
+          {
+            bookingId: booking._id.toString(),
+            vehicleId: vehicleId,
+            vehicleName: vehicle.name,
+            pickupDate: pickup,
+            dropoffDate: dropoff,
+            totalAmount,
+            totalDays,
+          }
+        );
+
+        console.log(`📧 Booking confirmation notification sent to customer for booking ${booking._id}`);
       } catch (notifError) {
-        console.error('Failed to send new booking notification to host:', notifError);
+        console.error('Failed to send booking notifications:', notifError);
         // Don't fail the booking creation if notification fails
       }
 
