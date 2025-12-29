@@ -339,6 +339,9 @@ export const handleUserMonthlyRevenue = async (req: AuthRequest) => {
 /**
  * Comprehensive Finance Analytics for Host Dashboard
  * Provides all financial metrics with week-over-week comparisons
+ * 
+ * Uses totalAmount * 0.9 (90%) to calculate expected payout for analytics
+ * Uses actual hostPayoutAmount for withdrawable amounts (completed payouts only)
  */
 export const handleFinanceAnalytics = async (req: AuthRequest) => {
   try {
@@ -356,6 +359,9 @@ export const handleFinanceAnalytics = async (req: AuthRequest) => {
       ? parseInt(month as string, 10) - 1 // Convert to 0-indexed
       : now.getMonth();
 
+    // Platform fee is 10%, so host gets 90%
+    const PLATFORM_FEE_MULTIPLIER = 0.9;
+
     const baseMatch = {
       host: new mongoose.Types.ObjectId(userId),
       paymentStatus: "succeeded",
@@ -363,14 +369,15 @@ export const handleFinanceAnalytics = async (req: AuthRequest) => {
     };
 
     // ========================
-    // 1. TOTAL REVENUE (All Time)
+    // 1. TOTAL REVENUE (All Time) - Using calculated payout (totalAmount * 0.9)
     // ========================
     const totalRevenueAgg = await Booking.aggregate([
       { $match: baseMatch },
       {
         $group: {
           _id: null,
-          totalRevenue: { $sum: "$hostPayoutAmount" },
+          // Calculate expected payout: totalAmount * 0.9
+          totalRevenue: { $sum: { $multiply: ["$totalAmount", PLATFORM_FEE_MULTIPLIER] } },
           bookingCount: { $sum: 1 }
         }
       },
@@ -399,7 +406,7 @@ export const handleFinanceAnalytics = async (req: AuthRequest) => {
       {
         $group: {
           _id: null,
-          avgRevenue: { $avg: "$hostPayoutAmount" },
+          avgRevenue: { $avg: { $multiply: ["$totalAmount", PLATFORM_FEE_MULTIPLIER] } },
           count: { $sum: 1 }
         }
       },
@@ -423,7 +430,7 @@ export const handleFinanceAnalytics = async (req: AuthRequest) => {
       {
         $group: {
           _id: null,
-          avgRevenue: { $avg: "$hostPayoutAmount" },
+          avgRevenue: { $avg: { $multiply: ["$totalAmount", PLATFORM_FEE_MULTIPLIER] } },
           count: { $sum: 1 }
         }
       },
@@ -448,7 +455,7 @@ export const handleFinanceAnalytics = async (req: AuthRequest) => {
           createdAt: { $gte: thisWeekStart, $lte: thisWeekEnd },
         },
       },
-      { $group: { _id: null, revenue: { $sum: "$hostPayoutAmount" } } },
+      { $group: { _id: null, revenue: { $sum: { $multiply: ["$totalAmount", PLATFORM_FEE_MULTIPLIER] } } } },
     ]);
     const thisWeekRevenue = thisWeekRevenueAgg[0]?.revenue || 0;
 
@@ -459,7 +466,7 @@ export const handleFinanceAnalytics = async (req: AuthRequest) => {
           createdAt: { $gte: lastWeekStart, $lte: lastWeekEnd },
         },
       },
-      { $group: { _id: null, revenue: { $sum: "$hostPayoutAmount" } } },
+      { $group: { _id: null, revenue: { $sum: { $multiply: ["$totalAmount", PLATFORM_FEE_MULTIPLIER] } } } },
     ]);
     const lastWeekRevenue = lastWeekRevenueAgg[0]?.revenue || 0;
 
@@ -481,7 +488,7 @@ export const handleFinanceAnalytics = async (req: AuthRequest) => {
           createdAt: { $gte: selectedMonthStart, $lte: selectedMonthEnd },
         },
       },
-      { $group: { _id: null, revenue: { $sum: "$hostPayoutAmount" } } },
+      { $group: { _id: null, revenue: { $sum: { $multiply: ["$totalAmount", PLATFORM_FEE_MULTIPLIER] } } } },
     ]);
     const selectedMonthRevenue = selectedMonthAgg[0]?.revenue || 0;
 
@@ -496,7 +503,7 @@ export const handleFinanceAnalytics = async (req: AuthRequest) => {
           createdAt: { $gte: prevMonthStart, $lte: prevMonthEnd },
         },
       },
-      { $group: { _id: null, revenue: { $sum: "$hostPayoutAmount" } } },
+      { $group: { _id: null, revenue: { $sum: { $multiply: ["$totalAmount", PLATFORM_FEE_MULTIPLIER] } } } },
     ]);
     const prevMonthRevenue = prevMonthAgg[0]?.revenue || 0;
 
@@ -521,7 +528,7 @@ export const handleFinanceAnalytics = async (req: AuthRequest) => {
       {
         $group: {
           _id: { month: { $month: "$createdAt" } },
-          revenue: { $sum: "$hostPayoutAmount" },
+          revenue: { $sum: { $multiply: ["$totalAmount", PLATFORM_FEE_MULTIPLIER] } },
           bookings: { $sum: 1 },
         },
       },
@@ -544,7 +551,8 @@ export const handleFinanceAnalytics = async (req: AuthRequest) => {
     const yearlyTotal = earningsChart.reduce((sum, m) => sum + m.revenue, 0);
 
     // ========================
-    // 6. PENDING PAYOUTS
+    // 6. PENDING PAYOUTS (Completed bookings awaiting payout)
+    // Uses calculated amount since hostPayoutAmount may not be set yet
     // ========================
     const pendingPayoutsAgg = await Booking.aggregate([
       {
@@ -557,7 +565,8 @@ export const handleFinanceAnalytics = async (req: AuthRequest) => {
       {
         $group: {
           _id: null,
-          pendingAmount: { $sum: "$hostPayoutAmount" },
+          // Use calculated payout for pending (hostPayoutAmount may be empty)
+          pendingAmount: { $sum: { $multiply: ["$totalAmount", PLATFORM_FEE_MULTIPLIER] } },
           count: { $sum: 1 }
         }
       },
@@ -565,43 +574,79 @@ export const handleFinanceAnalytics = async (req: AuthRequest) => {
     const pendingPayoutAmount = pendingPayoutsAgg[0]?.pendingAmount || 0;
     const pendingPayoutCount = pendingPayoutsAgg[0]?.count || 0;
 
+    // ========================
+    // 7. TOTAL WITHDRAWABLE (Actually paid out - uses real hostPayoutAmount)
+    // This is the actual amount that has been transferred to the host
+    // ========================
+    const withdrawableAgg = await Booking.aggregate([
+      {
+        $match: {
+          host: new mongoose.Types.ObjectId(userId),
+          bookingStatus: "completed",
+          payoutStatus: "completed",
+          hostPayoutAmount: { $exists: true, $gt: 0 },
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          // Use actual hostPayoutAmount for completed payouts
+          totalWithdrawn: { $sum: "$hostPayoutAmount" },
+          count: { $sum: 1 }
+        }
+      },
+    ]);
+    const totalWithdrawn = withdrawableAgg[0]?.totalWithdrawn || 0;
+    const completedPayoutCount = withdrawableAgg[0]?.count || 0;
+
     return {
       // Summary Cards
       totalRevenue: {
-        amount: totalRevenue,
+        amount: parseFloat(totalRevenue.toFixed(2)),
         totalBookings,
+        description: "Calculated as 90% of total booking amounts (after 10% platform fee)",
       },
       averageRevenuePerBooking: {
-        amount: overallAvgRevenue,
-        thisWeekAmount: thisWeekAvgRevenue,
+        amount: parseFloat(overallAvgRevenue.toFixed(2)),
+        thisWeekAmount: parseFloat(thisWeekAvgRevenue.toFixed(2)),
         percentChange: parseFloat(avgRevenuePercentChange.toFixed(2)),
         trend: avgRevenuePercentChange >= 0 ? "up" : "down",
       },
       newRevenue: {
-        amount: thisWeekRevenue,
-        lastWeekAmount: lastWeekRevenue,
+        amount: parseFloat(thisWeekRevenue.toFixed(2)),
+        lastWeekAmount: parseFloat(lastWeekRevenue.toFixed(2)),
         percentChange: parseFloat(newRevenuePercentChange.toFixed(2)),
         trend: newRevenuePercentChange >= 0 ? "up" : "down",
       },
       monthlyIncome: {
-        amount: selectedMonthRevenue,
+        amount: parseFloat(selectedMonthRevenue.toFixed(2)),
         month: selectedMonth + 1, // Convert back to 1-indexed
         monthName: monthLabels[selectedMonth],
         year: selectedYear,
-        previousMonthAmount: prevMonthRevenue,
+        previousMonthAmount: parseFloat(prevMonthRevenue.toFixed(2)),
         percentChange: parseFloat(monthlyIncomePercentChange.toFixed(2)),
         trend: monthlyIncomePercentChange >= 0 ? "up" : "down",
       },
-      // Pending Payouts
+      // Pending Payouts (awaiting transfer)
       pendingPayouts: {
-        amount: pendingPayoutAmount,
+        amount: parseFloat(pendingPayoutAmount.toFixed(2)),
         count: pendingPayoutCount,
+        description: "Completed bookings awaiting payout transfer",
+      },
+      // Total Withdrawable (actually transferred to host)
+      totalWithdrawable: {
+        amount: parseFloat(totalWithdrawn.toFixed(2)),
+        completedPayouts: completedPayoutCount,
+        description: "Total amount already transferred to your Stripe account",
       },
       // Earnings Chart
       earningsChart: {
         year: selectedYear,
-        yearlyTotal,
-        data: earningsChart,
+        yearlyTotal: parseFloat(yearlyTotal.toFixed(2)),
+        data: earningsChart.map(item => ({
+          ...item,
+          revenue: parseFloat(item.revenue.toFixed(2)),
+        })),
       },
     };
   } catch (error) {
