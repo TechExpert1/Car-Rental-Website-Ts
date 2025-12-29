@@ -3,6 +3,8 @@ import Booking, { IBooking } from "./booking.model";
 import mongoose from "mongoose";
 import { refundPayment } from "../../utils/booking";
 import AuthRequest from "../../middlewares/userAuth";
+import Review from "../review/review.model";
+
 export const handleUpdateBooking = async (req: AuthRequest) => {
   try {
     const { id } = req.params;
@@ -50,7 +52,7 @@ export const handleGetAllBooking = async (req: AuthRequest) => {
     console.log("📝 userId type:", typeof userId);
     console.log("📝 userId value:", userId);
     console.log("📝 Full req.user:", req.user);
-    
+
     if (!userId) {
       throw new Error("User not authenticated");
     }
@@ -139,20 +141,52 @@ export const handleGetAllBooking = async (req: AuthRequest) => {
       .populate('host', 'name username email')
       .sort({ createdAt: -1 })
       .skip((pageNumber - 1) * limitNumber)
-      .limit(limitNumber);
+      .limit(limitNumber)
+      .lean();
 
-    // Ensure host has a display name in the response (fallback to username or email)
-    bookings.forEach((b: any) => {
+    // Get all vehicle IDs from the bookings
+    const vehicleIds = bookings
+      .map(b => b.vehicle?._id)
+      .filter(id => id != null);
+
+    // Find all reviews by current user for these vehicles
+    const userReviews = await Review.find({
+      user: new mongoose.Types.ObjectId(userId),
+      vehicle: { $in: vehicleIds }
+    }).select('vehicle').lean();
+
+    // Create a Set of vehicle IDs that the user has reviewed
+    const reviewedVehicleIds = new Set(
+      userReviews.map(r => r.vehicle.toString())
+    );
+
+    // Add isReviewSubmitted field to each booking and ensure host has display name
+    const bookingsWithReviewStatus = bookings.map((b: any) => {
+      // Check if user is the renter (only renters can submit reviews)
+      const isRenter = b.user?._id?.toString() === userId.toString();
+      const vehicleId = b.vehicle?._id?.toString();
+
+      // Only set isReviewSubmitted: true if the user is the renter AND has reviewed this vehicle
+      const isReviewSubmitted = isRenter && vehicleId
+        ? reviewedVehicleIds.has(vehicleId)
+        : false;
+
+      // Ensure host has a display name (fallback to username or email)
       if (b.host && !b.host.name) {
         b.host.name = b.host.username || b.host.email || 'Host';
       }
+
+      return {
+        ...b,
+        isReviewSubmitted,
+      };
     });
 
     console.log("📝 Retrieved bookings:", bookings.length);
     console.log("========== END DEBUG ==========");
 
     return {
-      bookings,
+      bookings: bookingsWithReviewStatus,
       pagination: {
         total,
         page: pageNumber,
