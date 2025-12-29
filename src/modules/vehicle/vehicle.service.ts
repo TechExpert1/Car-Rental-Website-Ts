@@ -2,6 +2,8 @@ import { Request } from "express";
 import Vehicle, { IVehicle } from "./vehicle.model";
 import AuthRequest from "../../middlewares/userAuth";
 import Review from "../review/review.model";
+import mongoose from "mongoose";
+
 export const handleCreateVehicle = async (req: AuthRequest) => {
   try {
     if (!req.user?.id)
@@ -28,37 +30,128 @@ export const handleCreateVehicle = async (req: AuthRequest) => {
 
 export const handleGetAllVehicles = async (req: AuthRequest) => {
   try {
-    let { page = "1", limit = "10", ...filters } = req.query;
+    let { page = "1", limit = "10", lat, lng, maxDistance, ...filters } = req.query;
 
     const parsedPage = parseInt(page as string, 10);
     const parsedLimit = parseInt(limit as string, 10);
 
-    const query: Record<string, any> = {};
-    
+    // Parse location parameters
+    const latitude = lat ? parseFloat(lat as string) : null;
+    const longitude = lng ? parseFloat(lng as string) : null;
+    // Default max distance: 50km (in meters for MongoDB)
+    const maxDistanceMeters = maxDistance
+      ? parseFloat(maxDistance as string) * 1000
+      : 50000; // 50km default
+
+    const matchQuery: Record<string, any> = {};
+
     // If user is authenticated
     if (req.user?.id) {
       if (req.user.role === "host") {
         // Host sees their own vehicles (all statuses)
-        query.host = req.user.id;
+        matchQuery.host = new mongoose.Types.ObjectId(req.user.id);
       } else if (req.user.role === "customer") {
         // Customer sees only active vehicles
-        query.status = "active";
+        matchQuery.status = "active";
       }
     } else {
       // Unauthenticated users see only active vehicles
-      query.status = "active";
+      matchQuery.status = "active";
     }
-    
+
+    // Apply additional filters (regex-based for string fields)
     Object.keys(filters).forEach((key) => {
       const value = filters[key];
-      if (value) {
-        query[key] = { $regex: value, $options: "i" };
+      if (value && key !== 'page' && key !== 'limit') {
+        matchQuery[key] = { $regex: value, $options: "i" };
       }
     });
 
-    const total = await Vehicle.countDocuments(query);
+    // If location coordinates are provided, use geoNear aggregation
+    if (latitude !== null && longitude !== null && !isNaN(latitude) && !isNaN(longitude)) {
+      // Use $geoNear aggregation for distance-based sorting
+      const aggregationPipeline: any[] = [
+        {
+          $geoNear: {
+            near: {
+              type: "Point",
+              coordinates: [longitude, latitude], // GeoJSON uses [lng, lat] order
+            },
+            distanceField: "distance", // Field to add with calculated distance
+            maxDistance: maxDistanceMeters, // Max distance in meters
+            spherical: true,
+            query: matchQuery,
+          },
+        },
+        // Add distance in kilometers for easier reading
+        {
+          $addFields: {
+            distanceKm: { $round: [{ $divide: ["$distance", 1000] }, 2] },
+          },
+        },
+        // Lookup host information
+        {
+          $lookup: {
+            from: "users",
+            localField: "host",
+            foreignField: "_id",
+            as: "hostInfo",
+          },
+        },
+        {
+          $addFields: {
+            host: {
+              $cond: {
+                if: { $gt: [{ $size: "$hostInfo" }, 0] },
+                then: {
+                  _id: { $arrayElemAt: ["$hostInfo._id", 0] },
+                  username: { $arrayElemAt: ["$hostInfo.username", 0] },
+                  image: { $arrayElemAt: ["$hostInfo.image", 0] },
+                },
+                else: "$host",
+              },
+            },
+          },
+        },
+        { $unset: "hostInfo" },
+        // Sort by distance (nearest first) - already sorted by $geoNear
+        // Facet for pagination
+        {
+          $facet: {
+            metadata: [{ $count: "total" }],
+            data: [
+              { $skip: (parsedPage - 1) * parsedLimit },
+              { $limit: parsedLimit },
+            ],
+          },
+        },
+      ];
 
-    const vehicles: IVehicle[] = await Vehicle.find(query)
+      const result = await Vehicle.aggregate(aggregationPipeline);
+
+      const total = result[0]?.metadata[0]?.total || 0;
+      const vehicles = result[0]?.data || [];
+
+      return {
+        vehicles,
+        pagination: {
+          total,
+          page: parsedPage,
+          limit: parsedLimit,
+          totalPages: Math.ceil(total / parsedLimit),
+        },
+        location: {
+          searchCoordinates: { lat: latitude, lng: longitude },
+          maxDistanceKm: maxDistanceMeters / 1000,
+          sortedByDistance: true,
+        },
+      };
+    }
+
+    // Standard query without location (original behavior)
+    const total = await Vehicle.countDocuments(matchQuery);
+
+    const vehicles: IVehicle[] = await Vehicle.find(matchQuery)
       .skip((parsedPage - 1) * parsedLimit)
       .limit(parsedLimit)
       .populate("host", "username image");
@@ -108,8 +201,8 @@ export const handleUpdateVehicle = async (req: AuthRequest) => {
     // Handle image deletion
     let currentImages = vehicle.images || [];
     if (deleteImages) {
-      const imagesToDelete = Array.isArray(deleteImages) 
-        ? deleteImages 
+      const imagesToDelete = Array.isArray(deleteImages)
+        ? deleteImages
         : JSON.parse(deleteImages);
       currentImages = currentImages.filter(
         (img) => !imagesToDelete.includes(img)
@@ -159,7 +252,7 @@ export const handleDeactivateVehicle = async (req: AuthRequest) => {
     const { endDate } = req.body;
 
     const updateData: any = { status: "de-activated" };
-    
+
     // If endDate is provided, store it for auto-reactivation
     if (endDate) {
       updateData.deactivationEndDate = new Date(endDate);

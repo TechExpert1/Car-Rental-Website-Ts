@@ -84,6 +84,9 @@ const vehicleSchema: Schema<IVehicle> = new Schema<IVehicle>(
   { timestamps: true }
 );
 
+// Add 2dsphere index for geospatial queries (sorting by distance)
+vehicleSchema.index({ "equipment.location": "2dsphere" });
+
 // Export model
 const Vehicle: Model<IVehicle> = mongoose.model<IVehicle>(
   "Vehicle",
