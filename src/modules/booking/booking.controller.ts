@@ -4,6 +4,7 @@ import {
   handleGetAllBooking,
   handleUserBookingStats,
   handleUserMonthlyRevenue,
+  handleFinanceAnalytics,
 } from "./booking.service";
 import Vehicle from "../vehicle/vehicle.model";
 import Booking from "./booking.model";
@@ -385,6 +386,23 @@ export const getUserYearlyStats = async (
 ): Promise<void> => {
   try {
     const result = await handleUserMonthlyRevenue(req);
+    res.status(200).json(result);
+  } catch (err: any) {
+    res.status(422).json({ error: err.message });
+  }
+};
+
+/**
+ * Get comprehensive finance analytics for host dashboard
+ * @query year - Optional year for earnings chart (default: current year)
+ * @query month - Optional month (1-12) for monthly income (default: current month)
+ */
+export const getFinanceAnalytics = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const result = await handleFinanceAnalytics(req);
     res.status(200).json(result);
   } catch (err: any) {
     res.status(422).json({ error: err.message });

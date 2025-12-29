@@ -335,3 +335,277 @@ export const handleUserMonthlyRevenue = async (req: AuthRequest) => {
     throw error;
   }
 };
+
+/**
+ * Comprehensive Finance Analytics for Host Dashboard
+ * Provides all financial metrics with week-over-week comparisons
+ */
+export const handleFinanceAnalytics = async (req: AuthRequest) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      throw new Error("User not authenticated");
+    }
+
+    const { year, month } = req.query;
+    const now = new Date();
+    const selectedYear = year
+      ? parseInt(year as string, 10)
+      : now.getFullYear();
+    const selectedMonth = month
+      ? parseInt(month as string, 10) - 1 // Convert to 0-indexed
+      : now.getMonth();
+
+    const baseMatch = {
+      host: new mongoose.Types.ObjectId(userId),
+      paymentStatus: "succeeded",
+      bookingStatus: { $in: ["active", "completed"] },
+    };
+
+    // ========================
+    // 1. TOTAL REVENUE (All Time)
+    // ========================
+    const totalRevenueAgg = await Booking.aggregate([
+      { $match: baseMatch },
+      {
+        $group: {
+          _id: null,
+          totalRevenue: { $sum: "$hostPayoutAmount" },
+          bookingCount: { $sum: 1 }
+        }
+      },
+    ]);
+    const totalRevenue = totalRevenueAgg[0]?.totalRevenue || 0;
+    const totalBookings = totalRevenueAgg[0]?.bookingCount || 0;
+
+    // ========================
+    // 2. AVERAGE REVENUE PER BOOKING (with week-over-week comparison)
+    // ========================
+    // Current week average
+    const thisWeekStart = new Date(now);
+    thisWeekStart.setDate(now.getDate() - now.getDay()); // Start of this week (Sunday)
+    thisWeekStart.setHours(0, 0, 0, 0);
+
+    const thisWeekEnd = new Date(now);
+    thisWeekEnd.setHours(23, 59, 59, 999);
+
+    const thisWeekAvgAgg = await Booking.aggregate([
+      {
+        $match: {
+          ...baseMatch,
+          createdAt: { $gte: thisWeekStart, $lte: thisWeekEnd },
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          avgRevenue: { $avg: "$hostPayoutAmount" },
+          count: { $sum: 1 }
+        }
+      },
+    ]);
+    const thisWeekAvgRevenue = thisWeekAvgAgg[0]?.avgRevenue || 0;
+
+    // Last week average
+    const lastWeekStart = new Date(thisWeekStart);
+    lastWeekStart.setDate(lastWeekStart.getDate() - 7);
+
+    const lastWeekEnd = new Date(thisWeekStart);
+    lastWeekEnd.setMilliseconds(-1); // End of last week
+
+    const lastWeekAvgAgg = await Booking.aggregate([
+      {
+        $match: {
+          ...baseMatch,
+          createdAt: { $gte: lastWeekStart, $lte: lastWeekEnd },
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          avgRevenue: { $avg: "$hostPayoutAmount" },
+          count: { $sum: 1 }
+        }
+      },
+    ]);
+    const lastWeekAvgRevenue = lastWeekAvgAgg[0]?.avgRevenue || 0;
+
+    // Calculate percentage change for average revenue
+    const avgRevenuePercentChange = lastWeekAvgRevenue > 0
+      ? ((thisWeekAvgRevenue - lastWeekAvgRevenue) / lastWeekAvgRevenue) * 100
+      : thisWeekAvgRevenue > 0 ? 100 : 0;
+
+    // Overall average (for display)
+    const overallAvgRevenue = totalBookings > 0 ? totalRevenue / totalBookings : 0;
+
+    // ========================
+    // 3. NEW REVENUE (This Week vs Last Week)
+    // ========================
+    const thisWeekRevenueAgg = await Booking.aggregate([
+      {
+        $match: {
+          ...baseMatch,
+          createdAt: { $gte: thisWeekStart, $lte: thisWeekEnd },
+        },
+      },
+      { $group: { _id: null, revenue: { $sum: "$hostPayoutAmount" } } },
+    ]);
+    const thisWeekRevenue = thisWeekRevenueAgg[0]?.revenue || 0;
+
+    const lastWeekRevenueAgg = await Booking.aggregate([
+      {
+        $match: {
+          ...baseMatch,
+          createdAt: { $gte: lastWeekStart, $lte: lastWeekEnd },
+        },
+      },
+      { $group: { _id: null, revenue: { $sum: "$hostPayoutAmount" } } },
+    ]);
+    const lastWeekRevenue = lastWeekRevenueAgg[0]?.revenue || 0;
+
+    // Calculate percentage change for new revenue
+    const newRevenuePercentChange = lastWeekRevenue > 0
+      ? ((thisWeekRevenue - lastWeekRevenue) / lastWeekRevenue) * 100
+      : thisWeekRevenue > 0 ? 100 : 0;
+
+    // ========================
+    // 4. MONTHLY INCOME (Selected Month vs Previous Month)
+    // ========================
+    const selectedMonthStart = new Date(selectedYear, selectedMonth, 1);
+    const selectedMonthEnd = new Date(selectedYear, selectedMonth + 1, 0, 23, 59, 59, 999);
+
+    const selectedMonthAgg = await Booking.aggregate([
+      {
+        $match: {
+          ...baseMatch,
+          createdAt: { $gte: selectedMonthStart, $lte: selectedMonthEnd },
+        },
+      },
+      { $group: { _id: null, revenue: { $sum: "$hostPayoutAmount" } } },
+    ]);
+    const selectedMonthRevenue = selectedMonthAgg[0]?.revenue || 0;
+
+    // Previous month
+    const prevMonthStart = new Date(selectedYear, selectedMonth - 1, 1);
+    const prevMonthEnd = new Date(selectedYear, selectedMonth, 0, 23, 59, 59, 999);
+
+    const prevMonthAgg = await Booking.aggregate([
+      {
+        $match: {
+          ...baseMatch,
+          createdAt: { $gte: prevMonthStart, $lte: prevMonthEnd },
+        },
+      },
+      { $group: { _id: null, revenue: { $sum: "$hostPayoutAmount" } } },
+    ]);
+    const prevMonthRevenue = prevMonthAgg[0]?.revenue || 0;
+
+    // Calculate percentage change for monthly income
+    const monthlyIncomePercentChange = prevMonthRevenue > 0
+      ? ((selectedMonthRevenue - prevMonthRevenue) / prevMonthRevenue) * 100
+      : selectedMonthRevenue > 0 ? 100 : 0;
+
+    // ========================
+    // 5. YEARLY EARNINGS CHART (Monthly Breakdown)
+    // ========================
+    const yearlyAgg = await Booking.aggregate([
+      {
+        $match: {
+          ...baseMatch,
+          createdAt: {
+            $gte: new Date(`${selectedYear}-01-01T00:00:00.000Z`),
+            $lte: new Date(`${selectedYear}-12-31T23:59:59.999Z`),
+          },
+        },
+      },
+      {
+        $group: {
+          _id: { month: { $month: "$createdAt" } },
+          revenue: { $sum: "$hostPayoutAmount" },
+          bookings: { $sum: 1 },
+        },
+      },
+      { $sort: { "_id.month": 1 } },
+    ]);
+
+    // Create monthly breakdown with labels
+    const monthLabels = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const earningsChart = monthLabels.map((label, index) => {
+      const monthData = yearlyAgg.find(item => item._id.month === index + 1);
+      return {
+        month: label,
+        monthIndex: index + 1,
+        revenue: monthData?.revenue || 0,
+        bookings: monthData?.bookings || 0,
+      };
+    });
+
+    // Total for the selected year
+    const yearlyTotal = earningsChart.reduce((sum, m) => sum + m.revenue, 0);
+
+    // ========================
+    // 6. PENDING PAYOUTS
+    // ========================
+    const pendingPayoutsAgg = await Booking.aggregate([
+      {
+        $match: {
+          host: new mongoose.Types.ObjectId(userId),
+          bookingStatus: "completed",
+          payoutStatus: "pending",
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          pendingAmount: { $sum: "$hostPayoutAmount" },
+          count: { $sum: 1 }
+        }
+      },
+    ]);
+    const pendingPayoutAmount = pendingPayoutsAgg[0]?.pendingAmount || 0;
+    const pendingPayoutCount = pendingPayoutsAgg[0]?.count || 0;
+
+    return {
+      // Summary Cards
+      totalRevenue: {
+        amount: totalRevenue,
+        totalBookings,
+      },
+      averageRevenuePerBooking: {
+        amount: overallAvgRevenue,
+        thisWeekAmount: thisWeekAvgRevenue,
+        percentChange: parseFloat(avgRevenuePercentChange.toFixed(2)),
+        trend: avgRevenuePercentChange >= 0 ? "up" : "down",
+      },
+      newRevenue: {
+        amount: thisWeekRevenue,
+        lastWeekAmount: lastWeekRevenue,
+        percentChange: parseFloat(newRevenuePercentChange.toFixed(2)),
+        trend: newRevenuePercentChange >= 0 ? "up" : "down",
+      },
+      monthlyIncome: {
+        amount: selectedMonthRevenue,
+        month: selectedMonth + 1, // Convert back to 1-indexed
+        monthName: monthLabels[selectedMonth],
+        year: selectedYear,
+        previousMonthAmount: prevMonthRevenue,
+        percentChange: parseFloat(monthlyIncomePercentChange.toFixed(2)),
+        trend: monthlyIncomePercentChange >= 0 ? "up" : "down",
+      },
+      // Pending Payouts
+      pendingPayouts: {
+        amount: pendingPayoutAmount,
+        count: pendingPayoutCount,
+      },
+      // Earnings Chart
+      earningsChart: {
+        year: selectedYear,
+        yearlyTotal,
+        data: earningsChart,
+      },
+    };
+  } catch (error) {
+    console.error("Get Finance Analytics Error:", error);
+    throw error;
+  }
+};
