@@ -12,7 +12,7 @@ import User from "../auth/auth.model";
 import { stripe } from "../../config/stripe";
 import { refundPayment } from "../../utils/booking";
 import AuthRequest from "../../middlewares/userAuth";
-import { calculatePayoutDate } from "../../services/scheduledPayout.service";
+import { calculatePayoutDate, processScheduledPayout } from "../../services/scheduledPayout.service";
 import { createNotification } from "../notifications/notification.service";
 //import { calculateSecurityDeposit } from "../../services/securityDeposit.service";
 
@@ -752,6 +752,86 @@ export const confirmBooking = async (
     });
   } catch (err: any) {
     console.error("Confirm booking error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+/**
+ * Process immediate payout for a specific booking
+ * Bypasses the 8-day waiting period and immediately transfers funds to host
+ * 
+ * @route POST /bookings/process-payout
+ * @body { bookingId: string }
+ * @access Admin only
+ */
+export const processImmediatePayout = async (
+  req: AuthRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    const { bookingId } = req.body;
+
+    if (!bookingId) {
+      res.status(400).json({ error: "Booking ID is required" });
+      return;
+    }
+
+    // Fetch the booking to validate
+    const booking = await Booking.findById(bookingId)
+      .populate("vehicle", "name")
+      .populate("host", "email username");
+
+    if (!booking) {
+      res.status(404).json({ error: "Booking not found" });
+      return;
+    }
+
+    // Check if booking is in a valid state for payout
+    if (booking.bookingStatus !== "completed") {
+      res.status(400).json({
+        error: `Cannot process payout for booking with status: ${booking.bookingStatus}. Booking must be completed first.`,
+        currentStatus: booking.bookingStatus,
+      });
+      return;
+    }
+
+    // Check if payout is already completed
+    if (booking.payoutStatus === "completed") {
+      res.status(400).json({
+        error: "Payout has already been processed for this booking",
+        payoutTransferId: booking.payoutTransferId,
+        payoutProcessedAt: booking.payoutProcessedAt,
+      });
+      return;
+    }
+
+    // Check if payout is currently being processed
+    if (booking.payoutStatus === "processing") {
+      res.status(400).json({
+        error: "Payout is currently being processed. Please wait.",
+      });
+      return;
+    }
+
+    console.log(`🚀 Processing immediate payout for booking ${bookingId}...`);
+
+    // Process the payout immediately
+    const result = await processScheduledPayout(bookingId);
+
+    if (result.success) {
+      res.status(200).json({
+        success: true,
+        message: "Payout processed successfully",
+        payout: result.payout,
+      });
+    } else {
+      res.status(400).json({
+        success: false,
+        message: result.message || "Failed to process payout",
+      });
+    }
+  } catch (err: any) {
+    console.error("Process immediate payout error:", err.message);
     res.status(500).json({ error: err.message });
   }
 };
