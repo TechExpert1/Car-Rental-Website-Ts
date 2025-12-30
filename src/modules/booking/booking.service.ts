@@ -4,6 +4,12 @@ import mongoose from "mongoose";
 import { refundPayment } from "../../utils/booking";
 import AuthRequest from "../../middlewares/userAuth";
 import Review from "../review/review.model";
+import {
+  PLATFORM_FEE_PERCENTAGE,
+  STRIPE_FEE_PERCENTAGE,
+  STRIPE_FIXED_FEE,
+  calculatePayoutBreakdown
+} from "../../config/payout.config";
 
 export const handleUpdateBooking = async (req: AuthRequest) => {
   try {
@@ -359,8 +365,19 @@ export const handleFinanceAnalytics = async (req: AuthRequest) => {
       ? parseInt(month as string, 10) - 1 // Convert to 0-indexed
       : now.getMonth();
 
-    // Platform fee is 10%, so host gets 90%
-    const PLATFORM_FEE_MULTIPLIER = 0.9;
+    /**
+     * Fee Calculation:
+     * 1. Stripe Fee: (totalAmount * 2.9%) + $0.30
+     * 2. Amount after Stripe: totalAmount - stripeFee
+     * 3. Platform Fee: amountAfterStripe * 10%
+     * 4. Host Payout: amountAfterStripe - platformFee = amountAfterStripe * 0.9
+     * 
+     * Combined formula: (totalAmount - (totalAmount * 0.029 + 0.30)) * 0.9
+     * Simplified: (totalAmount * 0.971 - 0.30) * 0.9
+     */
+    const STRIPE_PERCENT = STRIPE_FEE_PERCENTAGE / 100; // 0.029
+    const AFTER_STRIPE_MULTIPLIER = 1 - STRIPE_PERCENT; // 0.971
+    const PLATFORM_MULTIPLIER = (100 - PLATFORM_FEE_PERCENTAGE) / 100; // 0.9
 
     const baseMatch = {
       host: new mongoose.Types.ObjectId(userId),
@@ -369,21 +386,47 @@ export const handleFinanceAnalytics = async (req: AuthRequest) => {
     };
 
     // ========================
-    // 1. TOTAL REVENUE (All Time) - Using calculated payout (totalAmount * 0.9)
+    // 1. TOTAL REVENUE (All Time) - Using calculated payout with Stripe + Platform fees
+    // Formula: (totalAmount * 0.971 - 0.30) * 0.9
     // ========================
     const totalRevenueAgg = await Booking.aggregate([
       { $match: baseMatch },
       {
         $group: {
           _id: null,
-          // Calculate expected payout: totalAmount * 0.9
-          totalRevenue: { $sum: { $multiply: ["$totalAmount", PLATFORM_FEE_MULTIPLIER] } },
+          // Calculate expected payout: (totalAmount - stripeFee) * 0.9
+          totalRevenue: {
+            $sum: {
+              $multiply: [
+                {
+                  $subtract: [
+                    { $multiply: ["$totalAmount", AFTER_STRIPE_MULTIPLIER] },
+                    STRIPE_FIXED_FEE
+                  ]
+                },
+                PLATFORM_MULTIPLIER
+              ]
+            }
+          },
           bookingCount: { $sum: 1 }
         }
       },
     ]);
     const totalRevenue = totalRevenueAgg[0]?.totalRevenue || 0;
     const totalBookings = totalRevenueAgg[0]?.bookingCount || 0;
+
+    // Helper: MongoDB expression to calculate host payout (after Stripe + Platform fees)
+    const hostPayoutExpression = {
+      $multiply: [
+        {
+          $subtract: [
+            { $multiply: ["$totalAmount", AFTER_STRIPE_MULTIPLIER] },
+            STRIPE_FIXED_FEE
+          ]
+        },
+        PLATFORM_MULTIPLIER
+      ]
+    };
 
     // ========================
     // 2. AVERAGE REVENUE PER BOOKING (with week-over-week comparison)
@@ -406,7 +449,7 @@ export const handleFinanceAnalytics = async (req: AuthRequest) => {
       {
         $group: {
           _id: null,
-          avgRevenue: { $avg: { $multiply: ["$totalAmount", PLATFORM_FEE_MULTIPLIER] } },
+          avgRevenue: { $avg: hostPayoutExpression },
           count: { $sum: 1 }
         }
       },
@@ -430,7 +473,7 @@ export const handleFinanceAnalytics = async (req: AuthRequest) => {
       {
         $group: {
           _id: null,
-          avgRevenue: { $avg: { $multiply: ["$totalAmount", PLATFORM_FEE_MULTIPLIER] } },
+          avgRevenue: { $avg: hostPayoutExpression },
           count: { $sum: 1 }
         }
       },
@@ -455,7 +498,7 @@ export const handleFinanceAnalytics = async (req: AuthRequest) => {
           createdAt: { $gte: thisWeekStart, $lte: thisWeekEnd },
         },
       },
-      { $group: { _id: null, revenue: { $sum: { $multiply: ["$totalAmount", PLATFORM_FEE_MULTIPLIER] } } } },
+      { $group: { _id: null, revenue: { $sum: hostPayoutExpression } } },
     ]);
     const thisWeekRevenue = thisWeekRevenueAgg[0]?.revenue || 0;
 
@@ -466,7 +509,7 @@ export const handleFinanceAnalytics = async (req: AuthRequest) => {
           createdAt: { $gte: lastWeekStart, $lte: lastWeekEnd },
         },
       },
-      { $group: { _id: null, revenue: { $sum: { $multiply: ["$totalAmount", PLATFORM_FEE_MULTIPLIER] } } } },
+      { $group: { _id: null, revenue: { $sum: hostPayoutExpression } } },
     ]);
     const lastWeekRevenue = lastWeekRevenueAgg[0]?.revenue || 0;
 
@@ -488,7 +531,7 @@ export const handleFinanceAnalytics = async (req: AuthRequest) => {
           createdAt: { $gte: selectedMonthStart, $lte: selectedMonthEnd },
         },
       },
-      { $group: { _id: null, revenue: { $sum: { $multiply: ["$totalAmount", PLATFORM_FEE_MULTIPLIER] } } } },
+      { $group: { _id: null, revenue: { $sum: hostPayoutExpression } } },
     ]);
     const selectedMonthRevenue = selectedMonthAgg[0]?.revenue || 0;
 
@@ -503,7 +546,7 @@ export const handleFinanceAnalytics = async (req: AuthRequest) => {
           createdAt: { $gte: prevMonthStart, $lte: prevMonthEnd },
         },
       },
-      { $group: { _id: null, revenue: { $sum: { $multiply: ["$totalAmount", PLATFORM_FEE_MULTIPLIER] } } } },
+      { $group: { _id: null, revenue: { $sum: hostPayoutExpression } } },
     ]);
     const prevMonthRevenue = prevMonthAgg[0]?.revenue || 0;
 
@@ -528,7 +571,7 @@ export const handleFinanceAnalytics = async (req: AuthRequest) => {
       {
         $group: {
           _id: { month: { $month: "$createdAt" } },
-          revenue: { $sum: { $multiply: ["$totalAmount", PLATFORM_FEE_MULTIPLIER] } },
+          revenue: { $sum: hostPayoutExpression },
           bookings: { $sum: 1 },
         },
       },
@@ -566,7 +609,7 @@ export const handleFinanceAnalytics = async (req: AuthRequest) => {
         $group: {
           _id: null,
           // Use calculated payout for pending (hostPayoutAmount may be empty)
-          pendingAmount: { $sum: { $multiply: ["$totalAmount", PLATFORM_FEE_MULTIPLIER] } },
+          pendingAmount: { $sum: hostPayoutExpression },
           count: { $sum: 1 }
         }
       },

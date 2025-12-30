@@ -1,7 +1,13 @@
 import Booking from "../modules/booking/booking.model";
 import User from "../modules/auth/auth.model";
 import { stripe } from "../config/stripe";
-import { PAYOUT_DELAY_DAYS, PLATFORM_FEE_PERCENTAGE } from "../config/payout.config";
+import {
+  PAYOUT_DELAY_DAYS,
+  PLATFORM_FEE_PERCENTAGE,
+  STRIPE_FEE_PERCENTAGE,
+  STRIPE_FIXED_FEE,
+  calculatePayoutBreakdown
+} from "../config/payout.config";
 import { createNotification } from "../modules/notifications/notification.service";
 
 /**
@@ -17,15 +23,25 @@ export const calculatePayoutDate = (confirmationDate: Date): Date => {
 
 /**
  * Calculate host payout amount
- * Deducts platform fee from total amount
+ * Deducts both Stripe processing fees (2.9% + $0.30) and platform fee (10%)
+ * 
+ * Example for $100 booking:
+ * - Stripe Fee: ($100 * 2.9%) + $0.30 = $3.20
+ * - Net after Stripe: $100 - $3.20 = $96.80
+ * - Platform Fee (10%): $96.80 * 10% = $9.68
+ * - Host Payout: $96.80 - $9.68 = $87.12
  */
-export const calculateHostPayoutAmount = (totalAmount: number): { hostPayout: number; platformFee: number } => {
-  const platformFee = (totalAmount * PLATFORM_FEE_PERCENTAGE) / 100;
-  const hostPayout = totalAmount - platformFee;
+export const calculateHostPayoutAmount = (totalAmount: number): {
+  hostPayout: number;
+  platformFee: number;
+  stripeFee: number;
+} => {
+  const breakdown = calculatePayoutBreakdown(totalAmount);
 
   return {
-    hostPayout,
-    platformFee,
+    hostPayout: breakdown.hostPayout,
+    platformFee: breakdown.platformFee,
+    stripeFee: breakdown.stripeFee,
   };
 };
 
