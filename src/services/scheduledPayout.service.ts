@@ -150,11 +150,35 @@ export const processScheduledPayout = async (bookingId: string): Promise<any> =>
   } catch (error: any) {
     console.error(`❌ Error processing payout for booking ${bookingId}:`, error.message);
 
-    // Update booking status to failed
+    // Determine if this is a retryable error
+    const errorMessage = error.message || '';
+    const isRetryableError =
+      errorMessage.includes('insufficient') ||
+      errorMessage.includes('rate limit') ||
+      errorMessage.includes('temporarily') ||
+      errorMessage.includes('timeout') ||
+      errorMessage.includes('network') ||
+      error.type === 'StripeConnectionError' ||
+      error.type === 'StripeAPIError';
+
+    // Update booking status based on error type
     try {
-      await Booking.findByIdAndUpdate(bookingId, {
-        payoutStatus: "failed",
-      });
+      const updateData: any = {
+        payoutErrorMessage: errorMessage,
+        payoutLastAttemptAt: new Date(),
+      };
+
+      if (isRetryableError) {
+        // Retryable errors: reset to pending so cron will retry later
+        updateData.payoutStatus = 'pending';
+        console.log(`⏳ Payout for booking ${bookingId} will be retried later (retryable error)`);
+      } else {
+        // Permanent errors: mark as failed
+        updateData.payoutStatus = 'failed';
+        console.log(`🔴 Payout for booking ${bookingId} permanently failed`);
+      }
+
+      await Booking.findByIdAndUpdate(bookingId, updateData);
     } catch (updateError) {
       console.error(`Failed to update booking status:`, updateError);
     }

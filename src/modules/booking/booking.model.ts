@@ -29,6 +29,8 @@ export interface IBooking extends Document {
   payoutStatus?: "pending" | "processing" | "completed" | "failed";
   payoutProcessedAt?: Date;
   payoutTransferId?: string;
+  payoutErrorMessage?: string; // Store error message for debugging
+  payoutLastAttemptAt?: Date; // Track when last payout attempt was made
 
   // Notification flags
   notifiedPickup?: boolean;
@@ -86,6 +88,8 @@ const bookingSchema: Schema<IBooking> = new Schema<IBooking>(
     },
     payoutProcessedAt: { type: Date },
     payoutTransferId: { type: String },
+    payoutErrorMessage: { type: String }, // Store error message for debugging
+    payoutLastAttemptAt: { type: Date }, // Track when last payout attempt was made
 
     // Notification flags to avoid duplicate alerts
     notifiedPickup: { type: Boolean, default: false },
