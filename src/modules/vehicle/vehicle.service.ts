@@ -133,8 +133,37 @@ export const handleGetAllVehicles = async (req: AuthRequest) => {
       const total = result[0]?.metadata[0]?.total || 0;
       const vehicles = result[0]?.data || [];
 
+      // Get booked dates for all vehicles
+      const vehicleIds = vehicles.map((v: any) => v._id);
+      const bookings = await Booking.find({
+        vehicle: { $in: vehicleIds },
+        bookingStatus: { $in: ["active", "in-progress"] },
+        dropoffDate: { $gte: new Date() }
+      })
+        .select("vehicle pickupDate dropoffDate")
+        .lean();
+
+      // Group booked dates by vehicle
+      const bookedDatesMap: Record<string, Array<{ startDate: Date; endDate: Date }>> = {};
+      bookings.forEach((booking) => {
+        const vehicleId = booking.vehicle.toString();
+        if (!bookedDatesMap[vehicleId]) {
+          bookedDatesMap[vehicleId] = [];
+        }
+        bookedDatesMap[vehicleId].push({
+          startDate: booking.pickupDate,
+          endDate: booking.dropoffDate,
+        });
+      });
+
+      // Add booked dates to each vehicle
+      const vehiclesWithBookedDates = vehicles.map((vehicle: any) => ({
+        ...vehicle,
+        bookedDates: bookedDatesMap[vehicle._id.toString()] || [],
+      }));
+
       return {
-        vehicles,
+        vehicles: vehiclesWithBookedDates,
         pagination: {
           total,
           page: parsedPage,
@@ -152,13 +181,43 @@ export const handleGetAllVehicles = async (req: AuthRequest) => {
     // Standard query without location (original behavior)
     const total = await Vehicle.countDocuments(matchQuery);
 
-    const vehicles: IVehicle[] = await Vehicle.find(matchQuery)
+    const vehicles = await Vehicle.find(matchQuery)
       .skip((parsedPage - 1) * parsedLimit)
       .limit(parsedLimit)
-      .populate("host", "username image");
+      .populate("host", "username image")
+      .lean();
+
+    // Get booked dates for all vehicles
+    const vehicleIds = vehicles.map((v) => v._id);
+    const bookings = await Booking.find({
+      vehicle: { $in: vehicleIds },
+      bookingStatus: { $in: ["active", "in-progress"] },
+      dropoffDate: { $gte: new Date() }
+    })
+      .select("vehicle pickupDate dropoffDate")
+      .lean();
+
+    // Group booked dates by vehicle
+    const bookedDatesMap: Record<string, Array<{ startDate: Date; endDate: Date }>> = {};
+    bookings.forEach((booking) => {
+      const vehicleId = booking.vehicle.toString();
+      if (!bookedDatesMap[vehicleId]) {
+        bookedDatesMap[vehicleId] = [];
+      }
+      bookedDatesMap[vehicleId].push({
+        startDate: booking.pickupDate,
+        endDate: booking.dropoffDate,
+      });
+    });
+
+    // Add booked dates to each vehicle
+    const vehiclesWithBookedDates = vehicles.map((vehicle) => ({
+      ...vehicle,
+      bookedDates: bookedDatesMap[vehicle._id.toString()] || [],
+    }));
 
     return {
-      vehicles,
+      vehicles: vehiclesWithBookedDates,
       pagination: {
         total,
         page: parsedPage,
