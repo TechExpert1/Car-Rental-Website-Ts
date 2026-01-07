@@ -131,18 +131,29 @@ export const processScheduledPayout = async (bookingId: string): Promise<any> =>
 
     console.log(`✅ Payout processed successfully for booking ${bookingId}. Amount: $${hostPayout}`);
 
-    // Send payout notification to host
+    // Send payout notification to host with booking details
     try {
+      // Get renter and vehicle info for friendly message
+      const Vehicle = require('../modules/vehicle/vehicle.model').default;
+      const [renter, vehicleDoc] = await Promise.all([
+        User.findById(booking.user).select('name username'),
+        Vehicle.findById(booking.vehicle).select('name')
+      ]);
+      const renterName = renter?.name || renter?.username || 'your guest';
+      const vehicleName = vehicleDoc?.name || 'your vehicle';
+
       await createNotification(
         (host._id as any).toString(),
         'payout_received',
-        'Payout Received',
-        `You have received a payout of $${hostPayout.toFixed(2)} for your completed booking. The funds have been transferred to your connected Stripe account.`,
+        '💰 Payout Received!',
+        `Great news! You've received $${hostPayout.toFixed(2)} for ${renterName}'s completed rental of ${vehicleName}. The funds have been transferred to your bank account.`,
         {
           bookingId: bookingId.toString(),
           payoutAmount: hostPayout,
           transferId: transfer.id,
           processedAt: new Date(),
+          renterName,
+          vehicleName,
         }
       );
       console.log(`📧 Payout notification sent to host for booking ${bookingId}`);

@@ -62,12 +62,13 @@ export const handleCreateReview = async (req: AuthRequest) => {
       const vehicleDoc: any = await Vehicle.findById(vehicle).select("host name");
       if (vehicleDoc && vehicleDoc.host) {
         const hostId = vehicleDoc.host.toString();
-        const reviewer = (req.user?.username as string) || (req.user?.email as string) || 'A user';
-        const title = 'New review received';
-        const message = `${reviewer} left a review on your vehicle ${vehicleDoc.name}`;
+        const reviewerName = (req.user as any)?.name || (req.user?.username as string) || 'A guest';
+        const title = '⭐ New Review Received!';
+        const ratingText = rating ? ` (${rating.toFixed(1)}/5 stars)` : '';
+        const message = `${reviewerName} left a review${ratingText} on your ${vehicleDoc.name}. Check it out!`;
         // Fire and forget
         const reviewId = (review as any)._id ? (review as any)._id.toString() : undefined;
-        createNotification(hostId, 'review_received', title, message, { reviewId, vehicleId: vehicle });
+        createNotification(hostId, 'review_received', title, message, { reviewId, vehicleId: vehicle, rating, reviewerName });
       }
     } catch (notifyErr) {
       console.error("Failed to notify host about new review:", notifyErr);

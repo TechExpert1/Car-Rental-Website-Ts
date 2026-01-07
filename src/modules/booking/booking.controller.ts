@@ -14,6 +14,7 @@ import { refundPayment } from "../../utils/booking";
 import AuthRequest from "../../middlewares/userAuth";
 import { calculatePayoutDate, processScheduledPayout } from "../../services/scheduledPayout.service";
 import { createNotification } from "../notifications/notification.service";
+import { transporter } from "../../config/nodemailer";
 //import { calculateSecurityDeposit } from "../../services/securityDeposit.service";
 
 export const updateBooking = async (
@@ -198,16 +199,21 @@ export const cancelBooking = async (
 
         // Send refund notification to customer
         try {
+          // Get vehicle name for friendly message
+          const vehicleDoc = await Vehicle.findById(booking.vehicle).select('name');
+          const vehicleName = vehicleDoc?.name || 'your rental';
+
           await createNotification(
             bookingUserId,
             'refund_processed',
             'Refund Processed',
-            `Your refund of $${refundAmount.toFixed(2)} (${refundPercentage}% of booking amount) has been processed. It may take 5-10 business days to appear in your account.`,
+            `Great news! Your refund of $${refundAmount.toFixed(2)} for ${vehicleName} has been processed. It may take 5-10 business days to appear in your account.`,
             {
               bookingId: booking._id.toString(),
               refundAmount,
               refundPercentage,
               originalAmount: booking.totalAmount,
+              vehicleName,
             }
           );
           console.log(`📧 Refund notification sent to customer for booking ${id}`);
@@ -279,17 +285,22 @@ export const cancelBooking = async (
     try {
       const bookingUserName = typeof booking.user === 'object' && (booking.user as any).name
         ? (booking.user as any).name
-        : 'Guest';
+        : (typeof booking.user === 'object' && (booking.user as any).username) || 'Guest';
       const bookingHostName = typeof booking.host === 'object' && (booking.host as any).name
         ? (booking.host as any).name
-        : 'Host';
+        : (typeof booking.host === 'object' && (booking.host as any).username) || 'Host';
+
+      // Get vehicle name for friendly messages
+      const vehicleDoc = await Vehicle.findById(booking.vehicle).select('name');
+      const vehicleName = vehicleDoc?.name || 'your vehicle';
+      const pickupDateStr = booking.pickupDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
 
       // Notify the user (renter) about cancellation
       const userMessage = canceledBy === 'user'
-        ? `Your booking has been cancelled. ${message}`
+        ? `Your booking for ${vehicleName} (${pickupDateStr}) has been cancelled. ${message}`
         : canceledBy === 'host'
-          ? `Your booking has been cancelled by the host. ${message}`
-          : `Your booking has been cancelled by admin. ${message}`;
+          ? `Unfortunately, ${bookingHostName} has cancelled your booking for ${vehicleName} (${pickupDateStr}). ${message}`
+          : `Your booking for ${vehicleName} (${pickupDateStr}) has been cancelled by admin. ${message}`;
 
       await createNotification(
         bookingUserId,
@@ -301,15 +312,16 @@ export const cancelBooking = async (
           canceledBy,
           refundAmount,
           refundPercentage,
+          vehicleName,
         }
       );
 
       // Notify the host about cancellation
       const hostMessage = canceledBy === 'host'
-        ? `You have cancelled the booking. ${message}`
+        ? `You have cancelled the booking for ${vehicleName} with ${bookingUserName}. ${message}`
         : canceledBy === 'user'
-          ? `A booking has been cancelled by the guest (${bookingUserName}). ${message}`
-          : `A booking has been cancelled by admin. ${message}`;
+          ? `${bookingUserName} has cancelled their booking for ${vehicleName} (${pickupDateStr}). ${message}`
+          : `A booking for ${vehicleName} with ${bookingUserName} has been cancelled by admin. ${message}`;
 
       await createNotification(
         bookingHostId,
@@ -321,6 +333,8 @@ export const cancelBooking = async (
           canceledBy,
           refundAmount,
           hostPayoutAmount,
+          renterName: bookingUserName,
+          vehicleName,
         }
       );
 
@@ -589,11 +603,16 @@ export const createBooking = async (
         const user = await User.findById(userId);
         const userName = user?.name || user?.username || 'A guest';
 
+        // Format dates in a friendly way
+        const formatBookingDate = (date: Date) => date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+        const pickupStr = formatBookingDate(pickup);
+        const dropoffStr = formatBookingDate(dropoff);
+
         await createNotification(
           hostIdStr,
           'new_booking',
-          'New Booking Received',
-          `${userName} has booked your ${vehicle.name} from ${pickup.toLocaleDateString()} to ${dropoff.toLocaleDateString()}. Total: $${totalAmount.toFixed(2)}`,
+          '🎉 New Booking Received!',
+          `Great news! ${userName} has booked your ${vehicle.name} from ${pickupStr} to ${dropoffStr} (${totalDays} day${totalDays > 1 ? 's' : ''}). Total earnings: $${totalAmount.toFixed(2)}`,
           {
             bookingId: booking._id.toString(),
             vehicleId: vehicleId,
@@ -608,12 +627,59 @@ export const createBooking = async (
 
         console.log(`📧 New booking notification sent to host for booking ${booking._id}`);
 
+        // Send email to host about new booking
+        try {
+          const host = await User.findById(hostIdStr);
+          if (host?.email) {
+            const emailHtml = `
+              <div style="font-family: Arial, sans-serif; background:#f9f9f9; padding:20px;">
+                <div style="max-width:600px; margin:auto; background:#fff; padding:30px; border-radius:12px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+                  <div style="text-align:center; margin-bottom:20px;">
+                    <h1 style="color:#2976BA; margin:0;">🎉 New Booking!</h1>
+                  </div>
+                  <p style="font-size:16px; color:#333;">Hi ${host.name || host.username || 'there'},</p>
+                  <p style="font-size:16px; color:#333;">Great news! You have a new booking for your vehicle.</p>
+                  
+                  <div style="background:#f8f9fa; padding:20px; border-radius:8px; margin:20px 0;">
+                    <h3 style="color:#2976BA; margin-top:0;">📋 Booking Details</h3>
+                    <table style="width:100%; font-size:14px; color:#555;">
+                      <tr><td style="padding:8px 0;"><strong>Vehicle:</strong></td><td>${vehicle.name}</td></tr>
+                      <tr><td style="padding:8px 0;"><strong>Guest:</strong></td><td>${userName}</td></tr>
+                      <tr><td style="padding:8px 0;"><strong>Pickup:</strong></td><td>${pickupStr}</td></tr>
+                      <tr><td style="padding:8px 0;"><strong>Return:</strong></td><td>${dropoffStr}</td></tr>
+                      <tr><td style="padding:8px 0;"><strong>Duration:</strong></td><td>${totalDays} day${totalDays > 1 ? 's' : ''}</td></tr>
+                      <tr><td style="padding:8px 0;"><strong>Total Earnings:</strong></td><td style="color:#28a745; font-weight:bold;">$${totalAmount.toFixed(2)}</td></tr>
+                    </table>
+                  </div>
+                  
+                  <p style="font-size:14px; color:#666;">Please ensure your vehicle is ready for pickup on the scheduled date. If you have any questions, contact us anytime.</p>
+                  
+                  <div style="text-align:center; margin-top:30px;">
+                    <p style="font-size:12px; color:#999;">Thank you for being a valued host!</p>
+                  </div>
+                </div>
+              </div>
+            `;
+
+            await transporter.sendMail({
+              from: process.env.EMAIL_USER,
+              to: host.email,
+              subject: `🎉 New Booking: ${userName} booked your ${vehicle.name}`,
+              html: emailHtml,
+            });
+            console.log(`📨 New booking email sent to host ${host.email} for booking ${booking._id}`);
+          }
+        } catch (emailError) {
+          console.error('Failed to send booking email to host:', emailError);
+          // Don't fail the booking if email fails
+        }
+
         // Also send confirmation notification to customer
         await createNotification(
           userId.toString(),
           'booking_confirmed',
-          'Booking Confirmed',
-          `Your booking for ${vehicle.name} has been confirmed! Pickup: ${pickup.toLocaleDateString()}, Dropoff: ${dropoff.toLocaleDateString()}. Total: $${totalAmount.toFixed(2)}`,
+          '✅ Booking Confirmed!',
+          `You're all set! Your booking for ${vehicle.name} is confirmed. Pickup: ${pickupStr}, Return: ${dropoffStr}. Total: $${totalAmount.toFixed(2)}. Have a great trip!`,
           {
             bookingId: booking._id.toString(),
             vehicleId: vehicleId,
@@ -626,6 +692,55 @@ export const createBooking = async (
         );
 
         console.log(`📧 Booking confirmation notification sent to customer for booking ${booking._id}`);
+
+        // Send email confirmation to customer
+        try {
+          if (user?.email) {
+            const customerEmailHtml = `
+              <div style="font-family: Arial, sans-serif; background:#f9f9f9; padding:20px;">
+                <div style="max-width:600px; margin:auto; background:#fff; padding:30px; border-radius:12px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+                  <div style="text-align:center; margin-bottom:20px;">
+                    <h1 style="color:#28a745; margin:0;">✅ Booking Confirmed!</h1>
+                  </div>
+                  <p style="font-size:16px; color:#333;">Hi ${user.name || user.username || 'there'},</p>
+                  <p style="font-size:16px; color:#333;">Your booking has been confirmed. Here are your trip details:</p>
+                  
+                  <div style="background:#f8f9fa; padding:20px; border-radius:8px; margin:20px 0;">
+                    <h3 style="color:#2976BA; margin-top:0;">🚗 Trip Details</h3>
+                    <table style="width:100%; font-size:14px; color:#555;">
+                      <tr><td style="padding:8px 0;"><strong>Vehicle:</strong></td><td>${vehicle.name}</td></tr>
+                      <tr><td style="padding:8px 0;"><strong>Pickup Date:</strong></td><td>${pickupStr}</td></tr>
+                      <tr><td style="padding:8px 0;"><strong>Return Date:</strong></td><td>${dropoffStr}</td></tr>
+                      <tr><td style="padding:8px 0;"><strong>Duration:</strong></td><td>${totalDays} day${totalDays > 1 ? 's' : ''}</td></tr>
+                      <tr><td style="padding:8px 0;"><strong>Total Paid:</strong></td><td style="font-weight:bold;">$${totalAmount.toFixed(2)}</td></tr>
+                    </table>
+                  </div>
+                  
+                  <div style="background:#e8f5e9; padding:15px; border-radius:8px; margin:20px 0;">
+                    <p style="margin:0; color:#2e7d32; font-size:14px;">💡 <strong>Tip:</strong> Remember to arrive on time for your pickup and bring a valid driver's license.</p>
+                  </div>
+                  
+                  <p style="font-size:14px; color:#666;">Have a great trip! If you need any assistance, feel free to contact us.</p>
+                  
+                  <div style="text-align:center; margin-top:30px;">
+                    <p style="font-size:12px; color:#999;">Thank you for choosing us!</p>
+                  </div>
+                </div>
+              </div>
+            `;
+
+            await transporter.sendMail({
+              from: process.env.EMAIL_USER,
+              to: user.email,
+              subject: `✅ Booking Confirmed: ${vehicle.name} - ${pickupStr}`,
+              html: customerEmailHtml,
+            });
+            console.log(`📨 Booking confirmation email sent to customer ${user.email} for booking ${booking._id}`);
+          }
+        } catch (emailError) {
+          console.error('Failed to send booking confirmation email to customer:', emailError);
+          // Don't fail the booking if email fails
+        }
       } catch (notifError) {
         console.error('Failed to send booking notifications:', notifError);
         // Don't fail the booking creation if notification fails

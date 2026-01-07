@@ -1,5 +1,20 @@
 import Booking from "../modules/booking/booking.model";
 import { createNotification } from "../modules/notifications/notification.service";
+import User from "../modules/auth/auth.model";
+import Vehicle from "../modules/vehicle/vehicle.model";
+
+// Helper function to format date in a user-friendly way
+const formatDate = (date: Date): string => {
+  return date.toLocaleDateString('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true
+  });
+};
 
 // Run checks and create notifications for upcoming pickup/dropoff (24 hours ahead)
 export const runNotificationChecks = async () => {
@@ -16,11 +31,37 @@ export const runNotificationChecks = async () => {
 
     for (const booking of pickupCandidates) {
       try {
-        const msg = `Pickup for booking ${booking._id} is scheduled at ${booking.pickupDate.toISOString()}`;
-        // notify user (renter)
-        await createNotification(booking.user.toString(), "upcoming_pickup", "Upcoming pickup", msg, { bookingId: booking._id.toString(), pickupDate: booking.pickupDate });
-        // notify host
-        await createNotification(booking.host.toString(), "upcoming_pickup", "Upcoming pickup", msg, { bookingId: booking._id.toString(), pickupDate: booking.pickupDate });
+        // Get user (renter), host, and vehicle details for friendly messages
+        const [renter, host, vehicle] = await Promise.all([
+          User.findById(booking.user).select('name username'),
+          User.findById(booking.host).select('name username'),
+          Vehicle.findById(booking.vehicle).select('name')
+        ]);
+
+        const renterName = renter?.name || renter?.username || 'Guest';
+        const hostName = host?.name || host?.username || 'Host';
+        const vehicleName = vehicle?.name || 'your vehicle';
+        const formattedDate = formatDate(booking.pickupDate);
+
+        // Friendly message for renter
+        const renterMsg = `Your pickup for ${vehicleName} is scheduled for ${formattedDate}. Please arrive on time!`;
+        await createNotification(
+          booking.user.toString(),
+          "upcoming_pickup",
+          "Upcoming Pickup Reminder",
+          renterMsg,
+          { bookingId: booking._id.toString(), pickupDate: booking.pickupDate, vehicleName }
+        );
+
+        // Friendly message for host (includes renter name)
+        const hostMsg = `${renterName} is scheduled to pick up ${vehicleName} on ${formattedDate}. Please have the vehicle ready!`;
+        await createNotification(
+          booking.host.toString(),
+          "upcoming_pickup",
+          "Upcoming Pickup Reminder",
+          hostMsg,
+          { bookingId: booking._id.toString(), pickupDate: booking.pickupDate, renterName, vehicleName }
+        );
 
         (booking as any).notifiedPickup = true;
         await booking.save();
@@ -38,9 +79,37 @@ export const runNotificationChecks = async () => {
 
     for (const booking of dropoffCandidates) {
       try {
-        const msg = `Dropoff for booking ${booking._id} is scheduled at ${booking.dropoffDate.toISOString()}`;
-        await createNotification(booking.user.toString(), "upcoming_dropoff", "Upcoming dropoff", msg, { bookingId: booking._id.toString(), dropoffDate: booking.dropoffDate });
-        await createNotification(booking.host.toString(), "upcoming_dropoff", "Upcoming dropoff", msg, { bookingId: booking._id.toString(), dropoffDate: booking.dropoffDate });
+        // Get user (renter), host, and vehicle details for friendly messages
+        const [renter, host, vehicle] = await Promise.all([
+          User.findById(booking.user).select('name username'),
+          User.findById(booking.host).select('name username'),
+          Vehicle.findById(booking.vehicle).select('name')
+        ]);
+
+        const renterName = renter?.name || renter?.username || 'Guest';
+        const hostName = host?.name || host?.username || 'Host';
+        const vehicleName = vehicle?.name || 'the vehicle';
+        const formattedDate = formatDate(booking.dropoffDate);
+
+        // Friendly message for renter
+        const renterMsg = `Your rental of ${vehicleName} ends on ${formattedDate}. Please return the vehicle on time to avoid late fees.`;
+        await createNotification(
+          booking.user.toString(),
+          "upcoming_dropoff",
+          "Return Reminder",
+          renterMsg,
+          { bookingId: booking._id.toString(), dropoffDate: booking.dropoffDate, vehicleName }
+        );
+
+        // Friendly message for host (includes renter name)
+        const hostMsg = `${renterName} is scheduled to return ${vehicleName} on ${formattedDate}.`;
+        await createNotification(
+          booking.host.toString(),
+          "upcoming_dropoff",
+          "Upcoming Return",
+          hostMsg,
+          { bookingId: booking._id.toString(), dropoffDate: booking.dropoffDate, renterName, vehicleName }
+        );
 
         (booking as any).notifiedDropoff = true;
         await booking.save();
