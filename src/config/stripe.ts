@@ -221,7 +221,12 @@ export const platformWebhook = async (req: Request, res: Response) => {
 
             // Send email to host
             if (host?.email) {
-              const emailHtml = `
+              console.log(`📧 Attempting to send email to host: ${host.email}`);
+              console.log(`📧 EMAIL_USER configured: ${process.env.EMAIL_USER ? 'Yes' : 'No'}`);
+              console.log(`📧 EMAIL_PASS configured: ${process.env.EMAIL_PASS ? 'Yes' : 'No'}`);
+              
+              try {
+                const emailHtml = `
                 <div style="font-family: Arial, sans-serif; background:#f9f9f9; padding:20px;">
                   <div style="max-width:600px; margin:auto; background:#fff; padding:30px; border-radius:12px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
                     <div style="text-align:center; margin-bottom:20px;">
@@ -251,13 +256,19 @@ export const platformWebhook = async (req: Request, res: Response) => {
                 </div>
               `;
 
-              await transporter.sendMail({
-                from: process.env.EMAIL_USER,
-                to: host.email,
-                subject: `🎉 New Booking: ${renterName} booked your ${vehicleName}`,
-                html: emailHtml,
-              });
-              console.log(`📨 New booking email sent to host ${host.email}`);
+                await transporter.sendMail({
+                  from: process.env.EMAIL_USER,
+                  to: host.email,
+                  subject: `🎉 New Booking: ${renterName} booked your ${vehicleName}`,
+                  html: emailHtml,
+                });
+                console.log(`📨 New booking email sent to host ${host.email}`);
+              } catch (emailErr: any) {
+                console.error(`❌ Failed to send email to host ${host.email}:`, emailErr.message);
+                console.error(`❌ Full email error:`, emailErr);
+              }
+            } else {
+              console.log(`⚠️ Host has no email address, skipping email notification`);
             }
 
             // Send confirmation notification to customer
@@ -309,13 +320,19 @@ export const platformWebhook = async (req: Request, res: Response) => {
                 </div>
               `;
 
-              await transporter.sendMail({
-                from: process.env.EMAIL_USER,
-                to: renter.email,
-                subject: `✅ Booking Confirmed: ${vehicleName} - ${pickupStr}`,
-                html: customerEmailHtml,
-              });
-              console.log(`📨 Booking confirmation email sent to customer ${renter.email}`);
+              try {
+                await transporter.sendMail({
+                  from: process.env.EMAIL_USER,
+                  to: renter.email,
+                  subject: `✅ Booking Confirmed: ${vehicleName} - ${pickupStr}`,
+                  html: customerEmailHtml,
+                });
+                console.log(`📨 Booking confirmation email sent to customer ${renter.email}`);
+              } catch (emailErr: any) {
+                console.error(`❌ Failed to send email to customer ${renter.email}:`, emailErr.message);
+              }
+            } else {
+              console.log(`⚠️ Customer has no email address, skipping email notification`);
             }
           } catch (notifError) {
             console.error('Failed to send booking notifications:', notifError);
