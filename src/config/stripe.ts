@@ -11,6 +11,8 @@ import {
   handleExternalAccountUpdated,
   handleCapabilityUpdated,
 } from "../modules/payment/payment.controller";
+import { createNotification } from "../modules/notifications/notification.service";
+import { transporter } from "./nodemailer";
 
 // Initialize Stripe - check if key exists
 if (!process.env.STRIPE_SECRET_KEY) {
@@ -166,7 +168,7 @@ export const platformWebhook = async (req: Request, res: Response) => {
           return;
         }
 
-        await Booking.findByIdAndUpdate(
+        const updatedBooking = await Booking.findByIdAndUpdate(
           bookingId,
           {
             paymentIntentId: paymentIntent.id,
@@ -177,6 +179,149 @@ export const platformWebhook = async (req: Request, res: Response) => {
         );
 
         console.log("✅ Booking marked as paid and active:", bookingId);
+
+        // Send notification and email to host about new booking
+        if (updatedBooking) {
+          try {
+            const [renter, host, vehicle] = await Promise.all([
+              userModel.findById(updatedBooking.user),
+              userModel.findById(updatedBooking.host),
+              Vehicle.findById(updatedBooking.vehicle)
+            ]);
+
+            const renterName = renter?.name || renter?.username || 'A guest';
+            const vehicleName = vehicle?.name || 'your vehicle';
+            const hostIdStr = updatedBooking.host.toString();
+
+            // Format dates nicely
+            const formatDate = (date: Date) => date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+            const pickupStr = formatDate(new Date(updatedBooking.pickupDate));
+            const dropoffStr = formatDate(new Date(updatedBooking.dropoffDate));
+            const totalDays = updatedBooking.totalDays;
+            const totalAmount = updatedBooking.totalAmount;
+
+            // Send in-app notification to host
+            await createNotification(
+              hostIdStr,
+              'new_booking',
+              '🎉 New Booking Received!',
+              `Great news! ${renterName} has booked your ${vehicleName} from ${pickupStr} to ${dropoffStr} (${totalDays} day${totalDays > 1 ? 's' : ''}). Total earnings: $${totalAmount.toFixed(2)}`,
+              {
+                bookingId: bookingId,
+                vehicleId: updatedBooking.vehicle.toString(),
+                vehicleName,
+                guestName: renterName,
+                pickupDate: updatedBooking.pickupDate,
+                dropoffDate: updatedBooking.dropoffDate,
+                totalAmount,
+                totalDays,
+              }
+            );
+            console.log(`📧 New booking notification sent to host for booking ${bookingId}`);
+
+            // Send email to host
+            if (host?.email) {
+              const emailHtml = `
+                <div style="font-family: Arial, sans-serif; background:#f9f9f9; padding:20px;">
+                  <div style="max-width:600px; margin:auto; background:#fff; padding:30px; border-radius:12px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+                    <div style="text-align:center; margin-bottom:20px;">
+                      <h1 style="color:#2976BA; margin:0;">🎉 New Booking!</h1>
+                    </div>
+                    <p style="font-size:16px; color:#333;">Hi ${host.name || host.username || 'there'},</p>
+                    <p style="font-size:16px; color:#333;">Great news! You have a new booking for your vehicle.</p>
+                    
+                    <div style="background:#f8f9fa; padding:20px; border-radius:8px; margin:20px 0;">
+                      <h3 style="color:#2976BA; margin-top:0;">📋 Booking Details</h3>
+                      <table style="width:100%; font-size:14px; color:#555;">
+                        <tr><td style="padding:8px 0;"><strong>Vehicle:</strong></td><td>${vehicleName}</td></tr>
+                        <tr><td style="padding:8px 0;"><strong>Guest:</strong></td><td>${renterName}</td></tr>
+                        <tr><td style="padding:8px 0;"><strong>Pickup:</strong></td><td>${pickupStr}</td></tr>
+                        <tr><td style="padding:8px 0;"><strong>Return:</strong></td><td>${dropoffStr}</td></tr>
+                        <tr><td style="padding:8px 0;"><strong>Duration:</strong></td><td>${totalDays} day${totalDays > 1 ? 's' : ''}</td></tr>
+                        <tr><td style="padding:8px 0;"><strong>Total Earnings:</strong></td><td style="color:#28a745; font-weight:bold;">$${totalAmount.toFixed(2)}</td></tr>
+                      </table>
+                    </div>
+                    
+                    <p style="font-size:14px; color:#666;">Please ensure your vehicle is ready for pickup on the scheduled date.</p>
+                    
+                    <div style="text-align:center; margin-top:30px;">
+                      <p style="font-size:12px; color:#999;">Thank you for being a valued host!</p>
+                    </div>
+                  </div>
+                </div>
+              `;
+
+              await transporter.sendMail({
+                from: process.env.EMAIL_USER,
+                to: host.email,
+                subject: `🎉 New Booking: ${renterName} booked your ${vehicleName}`,
+                html: emailHtml,
+              });
+              console.log(`📨 New booking email sent to host ${host.email}`);
+            }
+
+            // Send confirmation notification to customer
+            await createNotification(
+              updatedBooking.user.toString(),
+              'booking_confirmed',
+              '✅ Booking Confirmed!',
+              `You're all set! Your booking for ${vehicleName} is confirmed. Pickup: ${pickupStr}, Return: ${dropoffStr}. Total: $${totalAmount.toFixed(2)}. Have a great trip!`,
+              {
+                bookingId: bookingId,
+                vehicleId: updatedBooking.vehicle.toString(),
+                vehicleName,
+                pickupDate: updatedBooking.pickupDate,
+                dropoffDate: updatedBooking.dropoffDate,
+                totalAmount,
+                totalDays,
+              }
+            );
+            console.log(`📧 Booking confirmation sent to customer for booking ${bookingId}`);
+
+            // Send confirmation email to customer
+            if (renter?.email) {
+              const customerEmailHtml = `
+                <div style="font-family: Arial, sans-serif; background:#f9f9f9; padding:20px;">
+                  <div style="max-width:600px; margin:auto; background:#fff; padding:30px; border-radius:12px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+                    <div style="text-align:center; margin-bottom:20px;">
+                      <h1 style="color:#28a745; margin:0;">✅ Booking Confirmed!</h1>
+                    </div>
+                    <p style="font-size:16px; color:#333;">Hi ${renter.name || renter.username || 'there'},</p>
+                    <p style="font-size:16px; color:#333;">Your booking has been confirmed!</p>
+                    
+                    <div style="background:#f8f9fa; padding:20px; border-radius:8px; margin:20px 0;">
+                      <h3 style="color:#2976BA; margin-top:0;">🚗 Trip Details</h3>
+                      <table style="width:100%; font-size:14px; color:#555;">
+                        <tr><td style="padding:8px 0;"><strong>Vehicle:</strong></td><td>${vehicleName}</td></tr>
+                        <tr><td style="padding:8px 0;"><strong>Pickup:</strong></td><td>${pickupStr}</td></tr>
+                        <tr><td style="padding:8px 0;"><strong>Return:</strong></td><td>${dropoffStr}</td></tr>
+                        <tr><td style="padding:8px 0;"><strong>Duration:</strong></td><td>${totalDays} day${totalDays > 1 ? 's' : ''}</td></tr>
+                        <tr><td style="padding:8px 0;"><strong>Total Paid:</strong></td><td style="font-weight:bold;">$${totalAmount.toFixed(2)}</td></tr>
+                      </table>
+                    </div>
+                    
+                    <div style="background:#e8f5e9; padding:15px; border-radius:8px; margin:20px 0;">
+                      <p style="margin:0; color:#2e7d32; font-size:14px;">💡 <strong>Tip:</strong> Remember to arrive on time and bring a valid driver's license.</p>
+                    </div>
+                    
+                    <p style="font-size:14px; color:#666;">Have a great trip!</p>
+                  </div>
+                </div>
+              `;
+
+              await transporter.sendMail({
+                from: process.env.EMAIL_USER,
+                to: renter.email,
+                subject: `✅ Booking Confirmed: ${vehicleName} - ${pickupStr}`,
+                html: customerEmailHtml,
+              });
+              console.log(`📨 Booking confirmation email sent to customer ${renter.email}`);
+            }
+          } catch (notifError) {
+            console.error('Failed to send booking notifications:', notifError);
+            // Don't fail the webhook response if notification fails
+          }
+        }
       } catch (err: any) {
         console.error("❌ Error during booking update:", err.message);
       }
