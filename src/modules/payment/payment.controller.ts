@@ -81,12 +81,23 @@ export const connectStripe = async (req: Request, res: Response) => {
       },
     });
 
+    // Sanity check for CLIENT_URL
+    const clientUrl = process.env.CLIENT_URL;
+    if (!clientUrl) {
+      console.warn('[Stripe Connect] CLIENT_URL is not set. Account onboarding return URLs may be invalid.');
+    } else if (clientUrl.includes('netlify')) {
+      console.warn('[Stripe Connect] CLIENT_URL appears to point to a Netlify preview:', clientUrl);
+    }
+
     const accountLink = await stripe.accountLinks.create({
       account: account.id,
-      refresh_url: `${process.env.CLIENT_URL}/stripe/refresh`,
-      return_url: `${process.env.CLIENT_URL}/stripe/callback`,
+      refresh_url: `${clientUrl}/stripe/refresh`,
+      return_url: `${clientUrl}/stripe/callback`,
       type: "account_onboarding",
     });
+
+    console.log(`[Stripe Connect] Generated accountLink with return_url=${clientUrl}/stripe/callback`);
+    console.log(`[Stripe Connect] stripe.accountLinks.url = ${accountLink.url}`);
 
     // Update user with connected account ID (use the existing user's _id for reliable update)
     const updatedUser = await User.findByIdAndUpdate(
@@ -127,12 +138,19 @@ export const connectStripe = async (req: Request, res: Response) => {
 // ========================
 export const generateAccountLink = async (connectedAccountId: string) => {
   try {
+    const clientUrl = process.env.CLIENT_URL;
+    if (!clientUrl) {
+      console.warn('[Stripe Connect] CLIENT_URL is not set when generating account link');
+    }
     const accountLink = await stripe.accountLinks.create({
       account: connectedAccountId,
-      refresh_url: `${process.env.CLIENT_URL}/stripe/refresh`,
-      return_url: `${process.env.CLIENT_URL}/stripe/callback`,
+      refresh_url: `${clientUrl}/stripe/refresh`,
+      return_url: `${clientUrl}/stripe/callback`,
       type: "account_onboarding",
     });
+
+    console.log(`[Stripe Connect] generateAccountLink -> return_url: ${clientUrl}/stripe/callback`);
+    console.log(`[Stripe Connect] generateAccountLink -> accountLink.url: ${accountLink.url}`);
 
     return {
       url: accountLink.url,
