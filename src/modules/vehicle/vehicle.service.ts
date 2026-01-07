@@ -3,6 +3,7 @@ import Vehicle, { IVehicle } from "./vehicle.model";
 import AuthRequest from "../../middlewares/userAuth";
 import Review from "../review/review.model";
 import mongoose from "mongoose";
+import Booking from "../booking/booking.model";
 
 export const handleCreateVehicle = async (req: AuthRequest) => {
   try {
@@ -179,7 +180,24 @@ export const handleGetVehicleById = async (req: Request) => {
       "username image"
     );
     if (!vehicle) throw new Error("Vehicle not found");
-    return { vehicle };
+
+    // Get all active/in-progress bookings for this vehicle to show booked dates
+    const bookings = await Booking.find({
+      vehicle: id,
+      bookingStatus: { $in: ["active", "in-progress"] },
+      dropoffDate: { $gte: new Date() } // Only future/current bookings
+    })
+      .select("pickupDate dropoffDate")
+      .sort({ pickupDate: 1 })
+      .lean();
+
+    // Format booked dates as an array of date ranges
+    const bookedDates = bookings.map((booking) => ({
+      startDate: booking.pickupDate,
+      endDate: booking.dropoffDate,
+    }));
+
+    return { vehicle, bookedDates };
   } catch (error) {
     console.error("Get Vehicle By ID Error:", error);
     throw error;
