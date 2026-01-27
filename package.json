@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "nodemon --watch src --ext ts --exec ts-node src/server.ts",
     "build": "tsc",
-    "start": "node dist/server.js",
+    "start": "node dist/src/server.js",
     "test": "jest --passWithNoTests --detectOpenHandles --forceExit",
     "create-admin": "ts-node scripts/createAdmin.ts"
   },
