@@ -1,556 +1,400 @@
-// import { Response } from "express";
-// import AuthRequest from "../../middlewares/userAuth";
-// import {
-//   processCancellation,
-//   processEarlyReturn,
-//   markNoShow,
-// } from "../../services/cancellation.service";
-// import {
-//   getAllDisputes,
-//   getDisputeById,
-//   resolveDispute,
-//   rejectDispute,
-// } from "../../services/dispute.service";
-// import {
-//   processHostPayout,
-//   getPendingPayouts,
-//   batchProcessPayouts,
-//   getHostPayoutHistory,
-// } from "../../services/hostPayout.service";
-// import User from "../auth/auth.model";
-// import Booking from "../booking/booking.model";
-// import Vehicle from "../vehicle/vehicle.model";
-
-// // ========================
-// // Cancellation Management
-// // ========================
-
-// /**
-//  * Admin cancel a booking
-//  */
-// export const adminCancelBooking = async (
-//   req: AuthRequest,
-//   res: Response
-// ): Promise<void> => {
-//   try {
-//     const { bookingId, reason } = req.body;
-
-//     if (!bookingId) {
-//       res.status(400).json({ error: "Booking ID is required" });
-//       return;
-//     }
-
-//     const result = await processCancellation(bookingId, "admin", reason);
-
-//     res.status(200).json(result);
-//   } catch (error: any) {
-//     console.error("Admin cancel booking error:", error.message);
-//     res.status(400).json({ error: error.message });
-//   }
-// };
-
-// /**
-//  * Process early return
-//  */
-// export const adminProcessEarlyReturn = async (
-//   req: AuthRequest,
-//   res: Response
-// ): Promise<void> => {
-//   try {
-//     const { bookingId, hostApproved } = req.body;
-
-//     if (!bookingId || hostApproved === undefined) {
-//       res
-//         .status(400)
-//         .json({ error: "Booking ID and hostApproved flag are required" });
-//       return;
-//     }
-
-//     const result = await processEarlyReturn(bookingId, hostApproved);
-
-//     res.status(200).json(result);
-//   } catch (error: any) {
-//     console.error("Admin process early return error:", error.message);
-//     res.status(400).json({ error: error.message });
-//   }
-// };
-
-// /**
-//  * Mark booking as no-show
-//  */
-// export const adminMarkNoShow = async (
-//   req: AuthRequest,
-//   res: Response
-// ): Promise<void> => {
-//   try {
-//     const { bookingId } = req.body;
-
-//     if (!bookingId) {
-//       res.status(400).json({ error: "Booking ID is required" });
-//       return;
-//     }
-
-//     const result = await markNoShow(bookingId);
-
-//     res.status(200).json(result);
-//   } catch (error: any) {
-//     console.error("Admin mark no-show error:", error.message);
-//     res.status(400).json({ error: error.message });
-//   }
-// };
-
-// // ========================
-// // Dispute Management
-// // ========================
-
-// /**
-//  * Get all disputes
-//  */
-// export const adminGetAllDisputes = async (
-//   req: AuthRequest,
-//   res: Response
-// ): Promise<void> => {
-//   try {
-//     const { status, limit } = req.query;
-
-//     const disputes = await getAllDisputes(
-//       status as string,
-//       limit ? parseInt(limit as string) : 50
-//     );
-
-//     res.status(200).json({ success: true, disputes });
-//   } catch (error: any) {
-//     console.error("Admin get disputes error:", error.message);
-//     res.status(400).json({ error: error.message });
-//   }
-// };
-
-// /**
-//  * Get dispute by ID
-//  */
-// export const adminGetDisputeById = async (
-//   req: AuthRequest,
-//   res: Response
-// ): Promise<void> => {
-//   try {
-//     const { disputeId } = req.params;
-
-//     const dispute = await getDisputeById(disputeId);
-
-//     res.status(200).json({ success: true, dispute });
-//   } catch (error: any) {
-//     console.error("Admin get dispute error:", error.message);
-//     res.status(400).json({ error: error.message });
-//   }
-// };
-
-// /**
-//  * Resolve dispute
-//  */
-// export const adminResolveDispute = async (
-//   req: AuthRequest,
-//   res: Response
-// ): Promise<void> => {
-//   try {
-//     const { disputeId } = req.params;
-//     const { action, securityDepositDeduction, notes } = req.body;
-//     const adminId = req.user?.id;
-
-//     if (!adminId) {
-//       res.status(401).json({ error: "Unauthorized" });
-//       return;
-//     }
-
-//     if (action === undefined || securityDepositDeduction === undefined) {
-//       res.status(400).json({
-//         error: "Action and securityDepositDeduction are required",
-//       });
-//       return;
-//     }
-
-//     const result = await resolveDispute(
-//       disputeId,
-//       adminId,
-//       action,
-//       securityDepositDeduction,
-//       notes || ""
-//     );
-
-//     res.status(200).json(result);
-//   } catch (error: any) {
-//     console.error("Admin resolve dispute error:", error.message);
-//     res.status(400).json({ error: error.message });
-//   }
-// };
-
-// /**
-//  * Reject dispute
-//  */
-// export const adminRejectDispute = async (
-//   req: AuthRequest,
-//   res: Response
-// ): Promise<void> => {
-//   try {
-//     const { disputeId } = req.params;
-//     const { notes } = req.body;
-//     const adminId = req.user?.id;
-
-//     if (!adminId) {
-//       res.status(401).json({ error: "Unauthorized" });
-//       return;
-//     }
-
-//     const result = await rejectDispute(disputeId, adminId, notes || "");
-
-//     res.status(200).json(result);
-//   } catch (error: any) {
-//     console.error("Admin reject dispute error:", error.message);
-//     res.status(400).json({ error: error.message });
-//   }
-// };
-
-// // ========================
-// // Host Payout Management
-// // ========================
-
-// /**
-//  * Get pending payouts
-//  */
-// export const adminGetPendingPayouts = async (
-//   req: AuthRequest,
-//   res: Response
-// ): Promise<void> => {
-//   try {
-//     const payouts = await getPendingPayouts();
-
-//     res.status(200).json({ success: true, payouts });
-//   } catch (error: any) {
-//     console.error("Admin get pending payouts error:", error.message);
-//     res.status(400).json({ error: error.message });
-//   }
-// };
-
-// /**
-//  * Process single host payout
-//  */
-// export const adminProcessHostPayout = async (
-//   req: AuthRequest,
-//   res: Response
-// ): Promise<void> => {
-//   try {
-//     const { bookingId } = req.body;
-
-//     if (!bookingId) {
-//       res.status(400).json({ error: "Booking ID is required" });
-//       return;
-//     }
-
-//     const result = await processHostPayout(bookingId);
-
-//     res.status(200).json(result);
-//   } catch (error: any) {
-//     console.error("Admin process host payout error:", error.message);
-//     res.status(400).json({ error: error.message });
-//   }
-// };
-
-// /**
-//  * Batch process all eligible payouts
-//  */
-// export const adminBatchProcessPayouts = async (
-//   req: AuthRequest,
-//   res: Response
-// ): Promise<void> => {
-//   try {
-//     const result = await batchProcessPayouts();
-
-//     res.status(200).json(result);
-//   } catch (error: any) {
-//     console.error("Admin batch process payouts error:", error.message);
-//     res.status(400).json({ error: error.message });
-//   }
-// };
-
-// /**
-//  * Get host payout history
-//  */
-// export const adminGetHostPayoutHistory = async (
-//   req: AuthRequest,
-//   res: Response
-// ): Promise<void> => {
-//   try {
-//     const { hostId } = req.params;
-//     const { limit } = req.query;
-
-//     const payouts = await getHostPayoutHistory(
-//       hostId,
-//       limit ? parseInt(limit as string) : 50
-//     );
-
-//     res.status(200).json({ success: true, payouts });
-//   } catch (error: any) {
-//     console.error("Admin get host payout history error:", error.message);
-//     res.status(400).json({ error: error.message });
-//   }
-// };
-
-// // ========================
-// // Host Verification
-// // ========================
-
-// /**
-//  * Verify host (manual verification by admin)
-//  */
-// export const adminVerifyHost = async (
-//   req: AuthRequest,
-//   res: Response
-// ): Promise<void> => {
-//   try {
-//     const { hostId } = req.body;
-
-//     if (!hostId) {
-//       res.status(400).json({ error: "Host ID is required" });
-//       return;
-//     }
-
-//     const host = await User.findById(hostId);
-
-//     if (!host) {
-//       res.status(404).json({ error: "Host not found" });
-//       return;
-//     }
-
-//     if (host.role !== "host") {
-//       res.status(400).json({ error: "User is not a host" });
-//       return;
-//     }
-
-//     host.isVerifiedHost = true;
-//     await host.save();
-
-//     res.status(200).json({
-//       success: true,
-//       message: "Host verified successfully",
-//       host: {
-//         id: host._id,
-//         email: host.email,
-//         isVerifiedHost: host.isVerifiedHost,
-//       },
-//     });
-//   } catch (error: any) {
-//     console.error("Admin verify host error:", error.message);
-//     res.status(400).json({ error: error.message });
-//   }
-// };
-
-// /**
-//  * Unverify host
-//  */
-// export const adminUnverifyHost = async (
-//   req: AuthRequest,
-//   res: Response
-// ): Promise<void> => {
-//   try {
-//     const { hostId } = req.body;
-
-//     if (!hostId) {
-//       res.status(400).json({ error: "Host ID is required" });
-//       return;
-//     }
-
-//     const host = await User.findById(hostId);
-
-//     if (!host) {
-//       res.status(404).json({ error: "Host not found" });
-//       return;
-//     }
-
-//     host.isVerifiedHost = false;
-//     await host.save();
-
-//     res.status(200).json({
-//       success: true,
-//       message: "Host verification removed",
-//       host: {
-//         id: host._id,
-//         email: host.email,
-//         isVerifiedHost: host.isVerifiedHost,
-//       },
-//     });
-//   } catch (error: any) {
-//     console.error("Admin unverify host error:", error.message);
-//     res.status(400).json({ error: error.message });
-//   }
-// };
-
-// /**
-//  * Feature/Boost host listing
-//  */
-// export const adminFeatureHost = async (
-//   req: AuthRequest,
-//   res: Response
-// ): Promise<void> => {
-//   try {
-//     const { hostId, featured } = req.body;
-
-//     if (!hostId || featured === undefined) {
-//       res.status(400).json({ error: "Host ID and featured flag are required" });
-//       return;
-//     }
-
-//     const host = await User.findById(hostId);
-
-//     if (!host) {
-//       res.status(404).json({ error: "Host not found" });
-//       return;
-//     }
-
-//     if (host.role !== "host") {
-//       res.status(400).json({ error: "User is not a host" });
-//       return;
-//     }
-
-//     host.isFeaturedHost = featured;
-//     await host.save();
-
-//     res.status(200).json({
-//       success: true,
-//       message: featured ? "Host featured successfully" : "Host unfeatured",
-//       host: {
-//         id: host._id,
-//         email: host.email,
-//         isFeaturedHost: host.isFeaturedHost,
-//       },
-//     });
-//   } catch (error: any) {
-//     console.error("Admin feature host error:", error.message);
-//     res.status(400).json({ error: error.message });
-//   }
-// };
-
-// // ========================
-// // Statistics & Reports
-// // ========================
-
-// /**
-//  * Get platform statistics
-//  */
-// export const adminGetStatistics = async (
-//   req: AuthRequest,
-//   res: Response
-// ): Promise<void> => {
-//   try {
-//     const totalUsers = await User.countDocuments();
-//     const totalHosts = await User.countDocuments({ role: "host" });
-//     const totalGuests = await User.countDocuments({ role: "customer" });
-//     const verifiedHosts = await User.countDocuments({ isVerifiedHost: true });
-
-//     const totalVehicles = await Vehicle.countDocuments();
-//     const activeVehicles = await Vehicle.countDocuments({ status: "active" });
-
-//     const totalBookings = await Booking.countDocuments();
-//     const completedBookings = await Booking.countDocuments({
-//       bookingStatus: "completed",
-//     });
-//     const canceledBookings = await Booking.countDocuments({
-//       bookingStatus: "canceled",
-//     });
-//     const activeBookings = await Booking.countDocuments({
-//       bookingStatus: { $in: ["in-progress", "active"] },
-//     });
-
-//     const totalRevenue = await Booking.aggregate([
-//       { $match: { bookingStatus: "completed" } },
-//       { $group: { _id: null, total: { $sum: "$totalAmount" } } },
-//     ]);
-
-//     const platformRevenue = await Booking.aggregate([
-//       { $match: { bookingStatus: "completed" } },
-//       { $group: { _id: null, total: { $sum: "$platformFee" } } },
-//     ]);
-
-//     const Dispute = require("../dispute/dispute.model").default;
-//     const openDisputes = await Dispute.countDocuments({ status: "open" });
-//     const resolvedDisputes = await Dispute.countDocuments({
-//       status: "resolved",
-//     });
-
-//     res.status(200).json({
-//       success: true,
-//       statistics: {
-//         users: {
-//           total: totalUsers,
-//           hosts: totalHosts,
-//           guests: totalGuests,
-//           verifiedHosts,
-//         },
-//         vehicles: {
-//           total: totalVehicles,
-//           active: activeVehicles,
-//         },
-//         bookings: {
-//           total: totalBookings,
-//           completed: completedBookings,
-//           canceled: canceledBookings,
-//           active: activeBookings,
-//         },
-//         revenue: {
-//           total: totalRevenue[0]?.total || 0,
-//           platformRevenue: platformRevenue[0]?.total || 0,
-//         },
-//         disputes: {
-//           open: openDisputes,
-//           resolved: resolvedDisputes,
-//         },
-//       },
-//     });
-//   } catch (error: any) {
-//     console.error("Admin get statistics error:", error.message);
-//     res.status(400).json({ error: error.message });
-//   }
-// };
-
-// /**
-//  * Get all bookings with filters (admin view)
-//  */
-// export const adminGetAllBookings = async (
-//   req: AuthRequest,
-//   res: Response
-// ): Promise<void> => {
-//   try {
-//     const { status, limit, page } = req.query;
-
-//     const query: any = {};
-//     if (status) {
-//       query.bookingStatus = status;
-//     }
-
-//     const pageNum = parseInt(page as string) || 1;
-//     const limitNum = parseInt(limit as string) || 50;
-//     const skip = (pageNum - 1) * limitNum;
-
-//     const bookings = await Booking.find(query)
-//       .populate("user", "name email username")
-//       .populate("host", "name email username isVerifiedHost")
-//       .populate("vehicle", "name rent type")
-//       .sort({ createdAt: -1 })
-//       .limit(limitNum)
-//       .skip(skip);
-
-//     const total = await Booking.countDocuments(query);
-
-//     res.status(200).json({
-//       success: true,
-//       bookings,
-//       pagination: {
-//         total,
-//         page: pageNum,
-//         limit: limitNum,
-//         pages: Math.ceil(total / limitNum),
-//       },
-//     });
-//   } catch (error: any) {
-//     console.error("Admin get all bookings error:", error.message);
-//     res.status(400).json({ error: error.message });
-//   }
-// };
+import { Response } from "express";
+import AuthRequest from "../../middlewares/userAuth";
+import * as adminService from "./admin.service";
+
+// ========================
+// Customer User Management
+// ========================
+
+/**
+ * Get all customers
+ */
+export const getCustomers = async (
+    req: AuthRequest,
+    res: Response
+): Promise<void> => {
+    try {
+        const { page, limit, search, accountStatus } = req.query;
+
+        const result = await adminService.getAllCustomers(
+            page ? parseInt(page as string) : 1,
+            limit ? parseInt(limit as string) : 50,
+            search as string,
+            accountStatus as string
+        );
+
+        res.status(200).json({ success: true, ...result });
+    } catch (error: any) {
+        console.error("Get customers error:", error.message);
+        res.status(400).json({ error: error.message });
+    }
+};
+
+/**
+ * Get customer count
+ */
+export const getCustomerCount = async (
+    req: AuthRequest,
+    res: Response
+): Promise<void> => {
+    try {
+        const result = await adminService.getCustomerCount();
+        res.status(200).json({ success: true, ...result });
+    } catch (error: any) {
+        console.error("Get customer count error:", error.message);
+        res.status(400).json({ error: error.message });
+    }
+};
+
+/**
+ * Get customer profile
+ */
+export const getCustomerProfile = async (
+    req: AuthRequest,
+    res: Response
+): Promise<void> => {
+    try {
+        const { customerId } = req.params;
+        const result = await adminService.getCustomerProfile(customerId);
+        res.status(200).json({ success: true, ...result });
+    } catch (error: any) {
+        console.error("Get customer profile error:", error.message);
+        res.status(400).json({ error: error.message });
+    }
+};
+
+/**
+ * Update customer account status
+ */
+export const updateCustomerStatus = async (
+    req: AuthRequest,
+    res: Response
+): Promise<void> => {
+    try {
+        const { customerId } = req.params;
+        const { accountStatus } = req.body;
+
+        if (!["active", "inactive", "banned"].includes(accountStatus)) {
+            res.status(400).json({ error: "Invalid account status" });
+            return;
+        }
+
+        const result = await adminService.updateCustomerStatus(
+            customerId,
+            accountStatus
+        );
+        res.status(200).json(result);
+    } catch (error: any) {
+        console.error("Update customer status error:", error.message);
+        res.status(400).json({ error: error.message });
+    }
+};
+
+// ========================
+// Host User Management
+// ========================
+
+/**
+ * Get all hosts
+ */
+export const getHosts = async (
+    req: AuthRequest,
+    res: Response
+): Promise<void> => {
+    try {
+        const { page, limit, search, approvalStatus, accountStatus } = req.query;
+
+        const result = await adminService.getAllHosts(
+            page ? parseInt(page as string) : 1,
+            limit ? parseInt(limit as string) : 50,
+            search as string,
+            approvalStatus as string,
+            accountStatus as string
+        );
+
+        res.status(200).json({ success: true, ...result });
+    } catch (error: any) {
+        console.error("Get hosts error:", error.message);
+        res.status(400).json({ error: error.message });
+    }
+};
+
+/**
+ * Get pending host approvals
+ */
+export const getPendingHosts = async (
+    req: AuthRequest,
+    res: Response
+): Promise<void> => {
+    try {
+        const result = await adminService.getPendingHosts();
+        res.status(200).json({ success: true, pendingHosts: result });
+    } catch (error: any) {
+        console.error("Get pending hosts error:", error.message);
+        res.status(400).json({ error: error.message });
+    }
+};
+
+/**
+ * Get host count
+ */
+export const getHostCount = async (
+    req: AuthRequest,
+    res: Response
+): Promise<void> => {
+    try {
+        const result = await adminService.getHostCount();
+        res.status(200).json({ success: true, ...result });
+    } catch (error: any) {
+        console.error("Get host count error:", error.message);
+        res.status(400).json({ error: error.message });
+    }
+};
+
+/**
+ * Get host profile
+ */
+export const getHostProfile = async (
+    req: AuthRequest,
+    res: Response
+): Promise<void> => {
+    try {
+        const { hostId } = req.params;
+        const result = await adminService.getHostProfile(hostId);
+        res.status(200).json({ success: true, ...result });
+    } catch (error: any) {
+        console.error("Get host profile error:", error.message);
+        res.status(400).json({ error: error.message });
+    }
+};
+
+/**
+ * Approve host account
+ */
+export const approveHost = async (
+    req: AuthRequest,
+    res: Response
+): Promise<void> => {
+    try {
+        const { hostId } = req.params;
+        const result = await adminService.approveHost(hostId);
+        res.status(200).json(result);
+    } catch (error: any) {
+        console.error("Approve host error:", error.message);
+        res.status(400).json({ error: error.message });
+    }
+};
+
+/**
+ * Reject host account
+ */
+export const rejectHost = async (
+    req: AuthRequest,
+    res: Response
+): Promise<void> => {
+    try {
+        const { hostId } = req.params;
+        const { reason } = req.body;
+
+        if (!reason) {
+            res.status(400).json({ error: "Rejection reason is required" });
+            return;
+        }
+
+        const result = await adminService.rejectHost(hostId, reason);
+        res.status(200).json(result);
+    } catch (error: any) {
+        console.error("Reject host error:", error.message);
+        res.status(400).json({ error: error.message });
+    }
+};
+
+/**
+ * Update host account status
+ */
+export const updateHostStatus = async (
+    req: AuthRequest,
+    res: Response
+): Promise<void> => {
+    try {
+        const { hostId } = req.params;
+        const { accountStatus } = req.body;
+
+        if (!["active", "inactive", "banned"].includes(accountStatus)) {
+            res.status(400).json({ error: "Invalid account status" });
+            return;
+        }
+
+        const result = await adminService.updateHostStatus(hostId, accountStatus);
+        res.status(200).json(result);
+    } catch (error: any) {
+        console.error("Update host status error:", error.message);
+        res.status(400).json({ error: error.message });
+    }
+};
+
+// ========================
+// Vehicle Management
+// ========================
+
+/**
+ * Get all vehicles
+ */
+export const getVehicles = async (
+    req: AuthRequest,
+    res: Response
+): Promise<void> => {
+    try {
+        const { page, limit, search, approvalStatus, status } = req.query;
+
+        const result = await adminService.getAllVehicles(
+            page ? parseInt(page as string) : 1,
+            limit ? parseInt(limit as string) : 50,
+            search as string,
+            approvalStatus as string,
+            status as string
+        );
+
+        res.status(200).json({ success: true, ...result });
+    } catch (error: any) {
+        console.error("Get vehicles error:", error.message);
+        res.status(400).json({ error: error.message });
+    }
+};
+
+/**
+ * Get pending vehicle approvals
+ */
+export const getPendingVehicles = async (
+    req: AuthRequest,
+    res: Response
+): Promise<void> => {
+    try {
+        const result = await adminService.getPendingVehicles();
+        res.status(200).json({ success: true, pendingVehicles: result });
+    } catch (error: any) {
+        console.error("Get pending vehicles error:", error.message);
+        res.status(400).json({ error: error.message });
+    }
+};
+
+/**
+ * Get vehicle count
+ */
+export const getVehicleCount = async (
+    req: AuthRequest,
+    res: Response
+): Promise<void> => {
+    try {
+        const result = await adminService.getVehicleCount();
+        res.status(200).json({ success: true, ...result });
+    } catch (error: any) {
+        console.error("Get vehicle count error:", error.message);
+        res.status(400).json({ error: error.message });
+    }
+};
+
+/**
+ * Approve vehicle
+ */
+export const approveVehicle = async (
+    req: AuthRequest,
+    res: Response
+): Promise<void> => {
+    try {
+        const { vehicleId } = req.params;
+        const result = await adminService.approveVehicle(vehicleId);
+        res.status(200).json(result);
+    } catch (error: any) {
+        console.error("Approve vehicle error:", error.message);
+        res.status(400).json({ error: error.message });
+    }
+};
+
+/**
+ * Reject vehicle
+ */
+export const rejectVehicle = async (
+    req: AuthRequest,
+    res: Response
+): Promise<void> => {
+    try {
+        const { vehicleId } = req.params;
+        const { reason } = req.body;
+
+        if (!reason) {
+            res.status(400).json({ error: "Rejection reason is required" });
+            return;
+        }
+
+        const result = await adminService.rejectVehicle(vehicleId, reason);
+        res.status(200).json(result);
+    } catch (error: any) {
+        console.error("Reject vehicle error:", error.message);
+        res.status(400).json({ error: error.message });
+    }
+};
+
+// ========================
+// Booking & Payment Management
+// ========================
+
+/**
+ * Get all bookings
+ */
+export const getBookings = async (
+    req: AuthRequest,
+    res: Response
+): Promise<void> => {
+    try {
+        const { page, limit, bookingStatus, paymentStatus } = req.query;
+
+        const result = await adminService.getAllBookings(
+            page ? parseInt(page as string) : 1,
+            limit ? parseInt(limit as string) : 50,
+            bookingStatus as string,
+            paymentStatus as string
+        );
+
+        res.status(200).json({ success: true, ...result });
+    } catch (error: any) {
+        console.error("Get bookings error:", error.message);
+        res.status(400).json({ error: error.message });
+    }
+};
+
+/**
+ * Get booking statistics
+ */
+export const getBookingStats = async (
+    req: AuthRequest,
+    res: Response
+): Promise<void> => {
+    try {
+        const result = await adminService.getBookingStats();
+        res.status(200).json({ success: true, ...result });
+    } catch (error: any) {
+        console.error("Get booking stats error:", error.message);
+        res.status(400).json({ error: error.message });
+    }
+};
+
+// ========================
+// Platform Statistics
+// ========================
+
+/**
+ * Get platform statistics
+ */
+export const getPlatformStats = async (
+    req: AuthRequest,
+    res: Response
+): Promise<void> => {
+    try {
+        const result = await adminService.getPlatformStats();
+        res.status(200).json({ success: true, stats: result });
+    } catch (error: any) {
+        console.error("Get platform stats error:", error.message);
+        res.status(400).json({ error: error.message });
+    }
+};

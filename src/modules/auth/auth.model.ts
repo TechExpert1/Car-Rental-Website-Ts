@@ -24,6 +24,14 @@ export interface IUser extends Document {
   isFeaturedHost?: boolean;
   pendingPenaltyAmount?: number; // Amount to be deducted from next payout
 
+  // Host verification fields
+  identityNumber?: string;
+  idCardProof?: string; // URL to uploaded ID card image
+  addressProof?: string; // URL to uploaded address proof document
+  hostApprovalStatus?: "pending" | "approved" | "rejected";
+  hostRejectionReason?: string;
+  accountStatus?: "active" | "inactive" | "banned";
+
   // Guest-specific fields
   averageGuestRating?: number;
   totalGuestRatings?: number;
@@ -39,7 +47,7 @@ const userSchema: Schema<IUser> = new Schema<IUser>(
     username: { type: String, required: true, unique: true },
     name: { type: String },
     password: { type: String, required: true },
-    image: { type: String , default: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcS2TgOv9CMmsUzYKCcLGWPvqcpUk6HXp2mnww&s" },
+    image: { type: String, default: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcS2TgOv9CMmsUzYKCcLGWPvqcpUk6HXp2mnww&s" },
     resetOTP: { type: String },
     otpExpiry: { type: Date },
     connected_acc_id: { type: String, default: "none" },
@@ -61,6 +69,21 @@ const userSchema: Schema<IUser> = new Schema<IUser>(
     totalCompletedTrips: { type: Number, default: 0 },
     isFeaturedHost: { type: Boolean, default: false },
     pendingPenaltyAmount: { type: Number, default: 0 },
+
+    // Host verification fields
+    identityNumber: { type: String },
+    idCardProof: { type: String },
+    addressProof: { type: String },
+    hostApprovalStatus: {
+      type: String,
+      enum: ["pending", "approved", "rejected"]
+    },
+    hostRejectionReason: { type: String },
+    accountStatus: {
+      type: String,
+      enum: ["active", "inactive", "banned"],
+      default: "active"
+    },
 
     // Guest-specific fields
     averageGuestRating: { type: Number, default: 0 },

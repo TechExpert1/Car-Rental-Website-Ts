@@ -33,6 +33,13 @@ export interface IVehicle extends Document {
 
   status: "active" | "de-activated";
   deactivationEndDate?: Date;
+
+  // Vehicle approval fields
+  description?: string;
+  legalDocuments?: string; // URL to uploaded legal documents
+  approvalStatus?: "pending" | "approved" | "rejected";
+  rejectionReason?: string;
+
   createdAt: Date;
   updatedAt: Date;
 }
@@ -46,6 +53,7 @@ const vehicleSchema: Schema<IVehicle> = new Schema<IVehicle>(
     type: { type: String },
     images: [{ type: String }],
     rent: { type: Number, required: true },
+    security: { type: Number, required: true },
 
     technicalSpecifications: {
       gearBox: { type: String },
@@ -80,6 +88,16 @@ const vehicleSchema: Schema<IVehicle> = new Schema<IVehicle>(
       default: "active",
     },
     deactivationEndDate: { type: Date },
+
+    // Vehicle approval fields
+    description: { type: String },
+    legalDocuments: { type: String },
+    approvalStatus: {
+      type: String,
+      enum: ["pending", "approved", "rejected"],
+      default: "pending"
+    },
+    rejectionReason: { type: String },
   },
   { timestamps: true }
 );
