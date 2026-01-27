@@ -16,12 +16,29 @@ const userSchema = Joi.object({
     "string.min": "Password must be at least 6 characters long",
     "any.required": "Password is required",
   }),
+  confirmPassword: Joi.string().required().messages({
+    "any.required": "Confirm password is required",
+  }),
   image: Joi.string().uri().optional().messages({
     "string.uri": "Image must be a valid URL",
   }),
   resetOTP: Joi.string().optional(),
   otpExpiry: Joi.date().optional(),
   role: Joi.string().valid("customer", "host").default("customer"),
+  identityNumber: Joi.string().when('role', {
+    is: 'host',
+    then: Joi.required(),
+    otherwise: Joi.optional()
+  }).messages({
+    "any.required": "Identity number is required for host signup",
+  }),
+  addressProof: Joi.string().when('role', {
+    is: 'host',
+    then: Joi.required(),
+    otherwise: Joi.optional()
+  }).messages({
+    "any.required": "Address proof is required for host signup",
+  }),
 });
 
 // Middleware function

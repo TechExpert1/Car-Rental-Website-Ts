@@ -23,7 +23,7 @@ describe("Auth Service", () => {
         },
       };
 
-      (User.findOne as jest.Mock).mockResolvedValue(null);
+      (User.findOne as jest.Mock).mockResolvedValue(null); // both email and username checks
       (bcrypt.hash as jest.Mock).mockResolvedValue("hashedPassword");
       (User.create as jest.Mock).mockResolvedValue({
         ...req.body,
@@ -37,11 +37,23 @@ describe("Auth Service", () => {
       expect(bcrypt.hash).toHaveBeenCalledWith("123456", 10);
     });
 
-    it("should throw error if user exists", async () => {
-      const req: any = { body: { email: "test@test.com" } };
-      (User.findOne as jest.Mock).mockResolvedValue({ email: "test@test.com" });
+    it("should throw error if email exists", async () => {
+      const req: any = { body: { email: "test@test.com", username: "test" } };
+      (User.findOne as jest.Mock).mockResolvedValueOnce(null); // for email check
+      (User.findOne as jest.Mock).mockResolvedValueOnce(null); // for username check
 
-      await expect(handleSignup(req)).rejects.toThrow("User already exists");
+      // Wait, actually for this test, we need to mock the first findOne to return a user for email
+      (User.findOne as jest.Mock).mockResolvedValueOnce({ email: "test@test.com" });
+
+      await expect(handleSignup(req)).rejects.toThrow("Email already exists");
+    });
+
+    it("should throw error if username exists", async () => {
+      const req: any = { body: { email: "test@test.com", username: "test" } };
+      (User.findOne as jest.Mock).mockResolvedValueOnce(null); // email not found
+      (User.findOne as jest.Mock).mockResolvedValueOnce({ username: "test" }); // username found
+
+      await expect(handleSignup(req)).rejects.toThrow("Username already exists");
     });
   });
 

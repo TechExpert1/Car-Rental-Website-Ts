@@ -6,10 +6,13 @@ import User, { IUser } from "./auth.model";
 // Signup
 export const handleSignup = async (req: Request): Promise<{ user: IUser; token: string }> => {
   try {
-    const { username, email, password, confirmPassword, role, identityNumber, idCardProof, addressProof } = req.body;
+    const { username, email, password, confirmPassword, role, identityNumber, addressProof } = req.body;
 
     const existingUser = await User.findOne({ email: email.toLowerCase() });
     if (existingUser) throw new Error("Email already exists");
+
+    const existingUsername = await User.findOne({ username: username.toLowerCase() });
+    if (existingUsername) throw new Error("Username already exists");
 
     if (password !== confirmPassword)
       throw new Error("Passwords do not match");
@@ -27,7 +30,9 @@ export const handleSignup = async (req: Request): Promise<{ user: IUser; token: 
     if (role === "host") {
       userData.hostApprovalStatus = "pending";
       if (identityNumber) userData.identityNumber = identityNumber;
-      if (idCardProof) userData.idCardProof = idCardProof;
+      if (req.fileUrls && req.fileUrls.idCardProof && req.fileUrls.idCardProof.length > 0) {
+        userData.idCardProof = req.fileUrls.idCardProof[0];
+      }
       if (addressProof) userData.addressProof = addressProof;
     }
 
