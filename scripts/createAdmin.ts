@@ -14,18 +14,19 @@ dotenv.config();
 const createAdminUser = async () => {
     try {
         // Connect to MongoDB
-        const mongoUri = process.env.MONGO_URI || "mongodb://localhost:27017/car-rental";
+        const mongoUri = process.env.MONGO_DB_CONNECTION_STRING || "mongodb://localhost:27017/car-rental";
         await mongoose.connect(mongoUri);
         console.log("✅ Connected to MongoDB");
 
         // Admin user details
         const adminData = {
-            email: "admin@carrental.com",
-            username: "admin",
-            name: "System Administrator",
+            email: "developer@yopmail.com",
+            username: "developer",
+            name: "Developer Admin",
             password: "Admin@123456", // Change this to a secure password
             role: "admin",
             accountStatus: "active",
+            image: "https://via.placeholder.com/150/0000FF/FFFFFF?text=Developer+Admin",
         };
 
         // Check if admin already exists

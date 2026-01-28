@@ -319,6 +319,12 @@ export const handleUpdateVehicle = async (req: AuthRequest) => {
       updateData.legalDocuments = req.fileUrls.legalDocuments[0]; // Take first document
     }
 
+    // Reset approval status to pending if vehicle was previously approved or rejected
+    if (vehicle.approvalStatus === "approved" || vehicle.approvalStatus === "rejected") {
+      updateData.approvalStatus = "pending";
+      updateData.rejectionReason = undefined; // Clear rejection reason when resetting to pending
+    }
+
     const updatedVehicle: IVehicle | null = await Vehicle.findByIdAndUpdate(
       id,
       updateData,

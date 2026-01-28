@@ -9,7 +9,8 @@
     "build": "tsc",
     "start": "node dist/src/server.js",
     "test": "jest --passWithNoTests --detectOpenHandles --forceExit",
-    "create-admin": "ts-node scripts/createAdmin.ts"
+    "create-admin": "ts-node scripts/createAdmin.ts",
+    "update-admin-image": "ts-node scripts/updateAdminImage.ts"
   },
   "keywords": [],
   "author": "",
