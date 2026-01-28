@@ -8,6 +8,7 @@ import {
   getVehicleReviews,
   deactivateVehicle,
   activateVehicle,
+  uploadLegalDocuments,
 } from "./vehicle.controller";
 import { hostAuth } from "../../middlewares";
 import { newMulterUpload, uploadMultipleToS3 } from "../../middlewares/upload";
@@ -21,6 +22,7 @@ router.get("/:id/reviews", getVehicleReviews);
 router.patch("/:id", hostAuth, newMulterUpload, uploadMultipleToS3, updateVehicle);
 router.patch("/:id/deactivate", hostAuth, deactivateVehicle);
 router.patch("/:id/activate", hostAuth, activateVehicle);
+router.post("/:id/legal-documents", hostAuth, newMulterUpload, uploadMultipleToS3, uploadLegalDocuments);
 router.delete("/:id", hostAuth, deleteVehicle);
 
 

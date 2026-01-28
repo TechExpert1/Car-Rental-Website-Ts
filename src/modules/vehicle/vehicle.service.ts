@@ -20,6 +20,11 @@ export const handleCreateVehicle = async (req: AuthRequest) => {
       data.images = req.fileUrls.images;
     }
 
+    // Handle uploaded legal documents from S3
+    if (req.fileUrls && req.fileUrls.legalDocuments && req.fileUrls.legalDocuments.length > 0) {
+      data.legalDocuments = req.fileUrls.legalDocuments[0]; // Take first document
+    }
+
     const vehicle = await Vehicle.create(data);
 
     return { message: "Vehicle created successfully", vehicle };
@@ -295,6 +300,11 @@ export const handleUpdateVehicle = async (req: AuthRequest) => {
 
     updateData.images = currentImages;
 
+    // Handle legal document uploads from S3
+    if (req.fileUrls && req.fileUrls.legalDocuments && req.fileUrls.legalDocuments.length > 0) {
+      updateData.legalDocuments = req.fileUrls.legalDocuments[0]; // Take first document
+    }
+
     const updatedVehicle: IVehicle | null = await Vehicle.findByIdAndUpdate(
       id,
       updateData,
@@ -380,6 +390,44 @@ export const handleDeleteVehicle = async (req: AuthRequest) => {
     return { message: "Vehicle deleted successfully" };
   } catch (error) {
     console.error("Delete Vehicle Error:", error);
+    throw error;
+  }
+};
+
+export const handleUploadLegalDocuments = async (req: AuthRequest) => {
+  try {
+    if (!req.user?.id)
+      throw new Error("Need a user Id - req.user.id is missing");
+
+    const { id } = req.params;
+
+    // Check if vehicle exists and belongs to the user
+    const vehicle: IVehicle | null = await Vehicle.findOne({ _id: id, host: req.user.id });
+    if (!vehicle) throw new Error("Vehicle not found or access denied");
+
+    // Handle uploaded legal documents from S3
+    if (!req.fileUrls || !req.fileUrls.legalDocuments || req.fileUrls.legalDocuments.length === 0) {
+      throw new Error("No legal documents uploaded");
+    }
+
+    const updatedVehicle: IVehicle | null = await Vehicle.findByIdAndUpdate(
+      id,
+      { legalDocuments: req.fileUrls.legalDocuments[0] },
+      { new: true }
+    );
+
+    if (!updatedVehicle) throw new Error("Vehicle not found");
+
+    return { 
+      message: "Legal documents uploaded successfully", 
+      vehicle: {
+        id: updatedVehicle._id,
+        name: updatedVehicle.name,
+        legalDocuments: updatedVehicle.legalDocuments
+      }
+    };
+  } catch (error) {
+    console.error("Upload Legal Documents Error:", error);
     throw error;
   }
 };
