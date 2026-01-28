@@ -166,6 +166,9 @@ export const handleGetAllVehicles = async (req: AuthRequest) => {
       // Add booked dates to each vehicle
       const vehiclesWithBookedDates = vehicles.map((vehicle: any) => ({
         ...vehicle,
+        description: vehicle.description || null,
+        legalDocuments: vehicle.legalDocuments || null,
+        rejectionReason: vehicle.rejectionReason || null,
         bookedDates: bookedDatesMap[vehicle._id.toString()] || [],
       }));
 
@@ -220,6 +223,9 @@ export const handleGetAllVehicles = async (req: AuthRequest) => {
     // Add booked dates to each vehicle
     const vehiclesWithBookedDates = vehicles.map((vehicle) => ({
       ...vehicle,
+      description: vehicle.description || null,
+      legalDocuments: vehicle.legalDocuments || null,
+      rejectionReason: vehicle.rejectionReason || null,
       bookedDates: bookedDatesMap[vehicle._id.toString()] || [],
     }));
 
@@ -263,7 +269,15 @@ export const handleGetVehicleById = async (req: Request) => {
       endDate: booking.dropoffDate,
     }));
 
-    return { vehicle, bookedDates };
+    // Ensure optional fields are included in the response even if they're null/undefined
+    const vehicleResponse = {
+      ...vehicle.toObject(),
+      description: vehicle.description || null,
+      legalDocuments: vehicle.legalDocuments || null,
+      rejectionReason: vehicle.rejectionReason || null,
+    };
+
+    return { vehicle: vehicleResponse, bookedDates };
   } catch (error) {
     console.error("Get Vehicle By ID Error:", error);
     throw error;
