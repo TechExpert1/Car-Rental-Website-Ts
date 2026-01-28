@@ -52,12 +52,14 @@ export const handleGetAllVehicles = async (req: AuthRequest) => {
         // Host sees their own vehicles (all statuses)
         matchQuery.host = new mongoose.Types.ObjectId(req.user.id);
       } else if (req.user.role === "customer") {
-        // Customer sees only active vehicles
+        // Customer sees only active AND approved vehicles
         matchQuery.status = "active";
+        matchQuery.approvalStatus = "approved";
       }
     } else {
-      // Unauthenticated users see only active vehicles
+      // Unauthenticated users see only active AND approved vehicles
       matchQuery.status = "active";
+      matchQuery.approvalStatus = "approved";
     }
 
     // Apply additional filters (regex-based for string fields)
