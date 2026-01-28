@@ -511,7 +511,7 @@ GET /admin/vehicles?page=1&limit=20&approvalStatus=pending
       "vehicleModel": "2023",
       "type": "Sedan",
       "rent": 50,
-      "security": 200,
+      "security": 200, // Optional security deposit amount
       "description": "Well-maintained sedan, perfect for city driving",
       "legalDocuments": "https://example.com/docs.pdf",
       "approvalStatus": "pending",
@@ -851,6 +851,7 @@ The host account will be created with `hostApprovalStatus: "pending"` and they w
 When a host adds a vehicle, they should provide:
 - `description`: Description of the vehicle
 - `legalDocuments`: URL to uploaded legal documents (registration, insurance, etc.)
+- `security` (optional): Security deposit amount for the vehicle
 
 The vehicle will be created with `approvalStatus: "pending"` and won't be visible to customers until an admin approves it.
 

@@ -8,7 +8,7 @@ export interface IVehicle extends Document {
   type?: string;
   images?: string[];
   rent: number;
-  security: number;
+  security?: number;
 
   technicalSpecifications?: {
     gearBox?: string;
@@ -53,7 +53,7 @@ const vehicleSchema: Schema<IVehicle> = new Schema<IVehicle>(
     type: { type: String },
     images: [{ type: String }],
     rent: { type: Number, required: true },
-    security: { type: Number, required: true },
+    security: { type: Number },
 
     technicalSpecifications: {
       gearBox: { type: String },
