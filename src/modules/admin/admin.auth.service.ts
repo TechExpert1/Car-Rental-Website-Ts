@@ -2,6 +2,7 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
 import User from "../auth/auth.model";
+import { sendPasswordResetOTP } from "../../utils/email.service";
 
 /**
  * Admin Login
@@ -69,9 +70,14 @@ export const generatePasswordResetOTP = async (email: string) => {
     user.otpExpiry = otpExpiry;
     await user.save();
 
-    // TODO: Send OTP via email
-    // For now, we'll return it in the response (in production, only send via email)
-    console.log(`Password reset OTP for ${email}: ${otp}`);
+    // Send OTP via email
+    try {
+        await sendPasswordResetOTP(email, otp);
+    } catch (emailError) {
+        console.error("Failed to send OTP email:", emailError);
+        // Don't throw error here - OTP is still saved in DB
+        // User can request again if email fails
+    }
 
     return {
         success: true,
