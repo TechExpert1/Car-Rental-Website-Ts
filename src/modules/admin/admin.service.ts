@@ -2,6 +2,7 @@ import User from "../auth/auth.model";
 import Vehicle from "../vehicle/vehicle.model";
 import Booking from "../booking/booking.model";
 import mongoose from "mongoose";
+import { transporter } from "../../config/nodemailer";
 
 // ========================
 // Customer User Management
@@ -282,6 +283,50 @@ export const approveHost = async (hostId: string) => {
     host.hostRejectionReason = undefined;
     await host.save();
 
+    // Send approval email notification
+    try {
+        if (host.email) {
+            const emailHtml = `
+                <div style="font-family: Arial, sans-serif; background:#f9f9f9; padding:20px;">
+                    <div style="max-width:600px; margin:auto; background:#fff; padding:30px; border-radius:12px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+                        <div style="text-align:center; margin-bottom:20px;">
+                            <h1 style="color:#28a745; margin:0;">🎉 Host Application Approved!</h1>
+                        </div>
+                        <p style="font-size:16px; color:#333;">Hi ${host.name || host.username || 'there'},</p>
+                        <p style="font-size:16px; color:#333;">Congratulations! Your host application has been approved. You can now start listing your vehicles and earning money as a verified host on our platform.</p>
+
+                        <div style="background:#e8f5e9; padding:20px; border-radius:8px; margin:20px 0;">
+                            <h3 style="color:#2e7d32; margin-top:0;">✅ What's Next?</h3>
+                            <ul style="color:#333; font-size:14px;">
+                                <li>Log in to your account</li>
+                                <li>Add your vehicle listings</li>
+                                <li>Set up your payout method</li>
+                                <li>Start earning from rentals</li>
+                            </ul>
+                        </div>
+
+                        <p style="font-size:14px; color:#666;">Welcome to our host community! If you have any questions, feel free to contact our support team.</p>
+
+                        <div style="text-align:center; margin-top:30px;">
+                            <p style="font-size:12px; color:#999;">Thank you for choosing us!</p>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            await transporter.sendMail({
+                from: process.env.EMAIL_USER,
+                to: host.email,
+                subject: "🎉 Congratulations! Your Host Application Has Been Approved",
+                html: emailHtml,
+            });
+            console.log(`📨 Host approval email sent to ${host.email}`);
+        }
+    } catch (emailError) {
+        console.error('Failed to send host approval email:', emailError);
+        // Don't fail the approval if email fails
+    }
+
     return {
         success: true,
         message: "Host approved successfully",
@@ -308,6 +353,55 @@ export const rejectHost = async (hostId: string, reason: string) => {
     host.isVerifiedHost = false;
     host.hostRejectionReason = reason;
     await host.save();
+
+    // Send rejection email notification
+    try {
+        if (host.email) {
+            const emailHtml = `
+                <div style="font-family: Arial, sans-serif; background:#f9f9f9; padding:20px;">
+                    <div style="max-width:600px; margin:auto; background:#fff; padding:30px; border-radius:12px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+                        <div style="text-align:center; margin-bottom:20px;">
+                            <h1 style="color:#dc3545; margin:0;">⚠️ Host Application Update</h1>
+                        </div>
+                        <p style="font-size:16px; color:#333;">Hi ${host.name || host.username || 'there'},</p>
+                        <p style="font-size:16px; color:#333;">We regret to inform you that your host application has been reviewed and requires some additional information or corrections.</p>
+
+                        <div style="background:#fff3cd; padding:20px; border-radius:8px; margin:20px 0; border-left: 4px solid #ffc107;">
+                            <h3 style="color:#856404; margin-top:0;">📝 Reason for Review</h3>
+                            <p style="color:#333; font-size:14px; margin:0;">${reason}</p>
+                        </div>
+
+                        <div style="background:#f8f9fa; padding:20px; border-radius:8px; margin:20px 0;">
+                            <h3 style="color:#2976BA; margin-top:0;">🔄 What You Can Do</h3>
+                            <ul style="color:#333; font-size:14px;">
+                                <li>Review the feedback above</li>
+                                <li>Update your application with the required information</li>
+                                <li>Re-submit your application for review</li>
+                                <li>Contact support if you need assistance</li>
+                            </ul>
+                        </div>
+
+                        <p style="font-size:14px; color:#666;">We're here to help you become a successful host. Please don't hesitate to reach out if you have any questions.</p>
+
+                        <div style="text-align:center; margin-top:30px;">
+                            <p style="font-size:12px; color:#999;">Thank you for your interest in joining our platform.</p>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            await transporter.sendMail({
+                from: process.env.EMAIL_USER,
+                to: host.email,
+                subject: "⚠️ Update on Your Host Application",
+                html: emailHtml,
+            });
+            console.log(`📨 Host rejection email sent to ${host.email}`);
+        }
+    } catch (emailError) {
+        console.error('Failed to send host rejection email:', emailError);
+        // Don't fail the rejection if email fails
+    }
 
     return {
         success: true,
@@ -430,7 +524,7 @@ export const getVehicleCount = async () => {
  * Approve vehicle
  */
 export const approveVehicle = async (vehicleId: string) => {
-    const vehicle = await Vehicle.findById(vehicleId);
+    const vehicle = await Vehicle.findById(vehicleId).populate('host');
 
     if (!vehicle) {
         throw new Error("Vehicle not found");
@@ -439,6 +533,60 @@ export const approveVehicle = async (vehicleId: string) => {
     vehicle.approvalStatus = "approved";
     vehicle.rejectionReason = undefined;
     await vehicle.save();
+
+    // Send approval email notification to host
+    try {
+        const host = vehicle.host as any;
+        if (host?.email) {
+            const emailHtml = `
+                <div style="font-family: Arial, sans-serif; background:#f9f9f9; padding:20px;">
+                    <div style="max-width:600px; margin:auto; background:#fff; padding:30px; border-radius:12px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+                        <div style="text-align:center; margin-bottom:20px;">
+                            <h1 style="color:#28a745; margin:0;">🚗 Vehicle Approved!</h1>
+                        </div>
+                        <p style="font-size:16px; color:#333;">Hi ${host.name || host.username || 'there'},</p>
+                        <p style="font-size:16px; color:#333;">Great news! Your vehicle listing has been approved and is now live on our platform.</p>
+
+                        <div style="background:#e8f5e9; padding:20px; border-radius:8px; margin:20px 0;">
+                            <h3 style="color:#2e7d32; margin-top:0;">✅ Vehicle Details</h3>
+                            <table style="width:100%; font-size:14px; color:#555;">
+                                <tr><td style="padding:8px 0;"><strong>Vehicle:</strong></td><td>${vehicle.name}</td></tr>
+                                <tr><td style="padding:8px 0;"><strong>Daily Rate:</strong></td><td>$${vehicle.rent}</td></tr>
+                                <tr><td style="padding:8px 0;"><strong>Status:</strong></td><td style="color:#28a745; font-weight:bold;">Active & Available</td></tr>
+                            </table>
+                        </div>
+
+                        <div style="background:#f8f9fa; padding:20px; border-radius:8px; margin:20px 0;">
+                            <h3 style="color:#2976BA; margin-top:0;">💡 Next Steps</h3>
+                            <ul style="color:#333; font-size:14px;">
+                                <li>Your vehicle is now visible to potential renters</li>
+                                <li>You'll receive booking notifications via email</li>
+                                <li>Ensure your vehicle is ready for rentals</li>
+                                <li>Monitor your earnings in the dashboard</li>
+                            </ul>
+                        </div>
+
+                        <p style="font-size:14px; color:#666;">Congratulations on your approved listing! We wish you success with your rentals.</p>
+
+                        <div style="text-align:center; margin-top:30px;">
+                            <p style="font-size:12px; color:#999;">Thank you for being a valued host!</p>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            await transporter.sendMail({
+                from: process.env.EMAIL_USER,
+                to: host.email,
+                subject: `🚗 Vehicle Approved: ${vehicle.name} is now live!`,
+                html: emailHtml,
+            });
+            console.log(`📨 Vehicle approval email sent to ${host.email} for vehicle ${vehicle.name}`);
+        }
+    } catch (emailError) {
+        console.error('Failed to send vehicle approval email:', emailError);
+        // Don't fail the approval if email fails
+    }
 
     return {
         success: true,
@@ -455,7 +603,7 @@ export const approveVehicle = async (vehicleId: string) => {
  * Reject vehicle
  */
 export const rejectVehicle = async (vehicleId: string, reason: string) => {
-    const vehicle = await Vehicle.findById(vehicleId);
+    const vehicle = await Vehicle.findById(vehicleId).populate('host');
 
     if (!vehicle) {
         throw new Error("Vehicle not found");
@@ -464,6 +612,57 @@ export const rejectVehicle = async (vehicleId: string, reason: string) => {
     vehicle.approvalStatus = "rejected";
     vehicle.rejectionReason = reason;
     await vehicle.save();
+
+    // Send rejection email notification to host
+    try {
+        const host = vehicle.host as any;
+        if (host?.email) {
+            const emailHtml = `
+                <div style="font-family: Arial, sans-serif; background:#f9f9f9; padding:20px;">
+                    <div style="max-width:600px; margin:auto; background:#fff; padding:30px; border-radius:12px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+                        <div style="text-align:center; margin-bottom:20px;">
+                            <h1 style="color:#dc3545; margin:0;">⚠️ Vehicle Listing Update</h1>
+                        </div>
+                        <p style="font-size:16px; color:#333;">Hi ${host.name || host.username || 'there'},</p>
+                        <p style="font-size:16px; color:#333;">We have reviewed your vehicle listing and it requires some updates before it can be approved.</p>
+
+                        <div style="background:#fff3cd; padding:20px; border-radius:8px; margin:20px 0; border-left: 4px solid #ffc107;">
+                            <h3 style="color:#856404; margin-top:0;">📝 Vehicle: ${vehicle.name}</h3>
+                            <p style="color:#333; font-size:14px; margin:0;"><strong>Reason for Review:</strong></p>
+                            <p style="color:#333; font-size:14px; margin:5px 0;">${reason}</p>
+                        </div>
+
+                        <div style="background:#f8f9fa; padding:20px; border-radius:8px; margin:20px 0;">
+                            <h3 style="color:#2976BA; margin-top:0;">🔄 What You Can Do</h3>
+                            <ul style="color:#333; font-size:14px;">
+                                <li>Review the feedback above</li>
+                                <li>Update your vehicle listing with the required information</li>
+                                <li>Re-submit your listing for approval</li>
+                                <li>Contact support if you need help</li>
+                            </ul>
+                        </div>
+
+                        <p style="font-size:14px; color:#666;">We're committed to maintaining high-quality listings on our platform. Please make the necessary updates and re-submit.</p>
+
+                        <div style="text-align:center; margin-top:30px;">
+                            <p style="font-size:12px; color:#999;">Thank you for your understanding.</p>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            await transporter.sendMail({
+                from: process.env.EMAIL_USER,
+                to: host.email,
+                subject: `⚠️ Update on Your Vehicle Listing: ${vehicle.name}`,
+                html: emailHtml,
+            });
+            console.log(`📨 Vehicle rejection email sent to ${host.email} for vehicle ${vehicle.name}`);
+        }
+    } catch (emailError) {
+        console.error('Failed to send vehicle rejection email:', emailError);
+        // Don't fail the rejection if email fails
+    }
 
     return {
         success: true,

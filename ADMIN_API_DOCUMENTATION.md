@@ -400,7 +400,7 @@ Get detailed host profile with vehicles and bookings.
 ### 5. Approve Host
 **POST** `/admin/hosts/:hostId/approve`
 
-Approve a pending host account.
+Approve a pending host account. An email notification will be sent to the host informing them of the approval.
 
 **Response:**
 ```json
@@ -416,12 +416,14 @@ Approve a pending host account.
 }
 ```
 
+**Email Notification:** A congratulatory email is sent to the host with next steps for getting started.
+
 ---
 
 ### 6. Reject Host
 **POST** `/admin/hosts/:hostId/reject`
 
-Reject a pending host account.
+Reject a pending host account. An email notification will be sent to the host with the rejection reason.
 
 **Request Body:**
 ```json
@@ -443,6 +445,8 @@ Reject a pending host account.
   }
 }
 ```
+
+**Email Notification:** An email is sent to the host explaining the rejection and providing guidance for re-submission.
 
 ---
 
@@ -578,7 +582,7 @@ Get count of vehicles by status.
 ### 4. Approve Vehicle
 **POST** `/admin/vehicles/:vehicleId/approve`
 
-Approve a pending vehicle.
+Approve a pending vehicle. An email notification will be sent to the vehicle owner (host) informing them of the approval.
 
 **Response:**
 ```json
@@ -593,12 +597,14 @@ Approve a pending vehicle.
 }
 ```
 
+**Email Notification:** A notification email is sent to the host confirming their vehicle is now live and available for bookings.
+
 ---
 
 ### 5. Reject Vehicle
 **POST** `/admin/vehicles/:vehicleId/reject`
 
-Reject a pending vehicle.
+Reject a pending vehicle. An email notification will be sent to the vehicle owner (host) with the rejection reason.
 
 **Request Body:**
 ```json
@@ -620,6 +626,8 @@ Reject a pending vehicle.
   }
 }
 ```
+
+**Email Notification:** An email is sent to the host explaining why the vehicle was rejected and providing guidance for updating and re-submitting the listing.
 
 ---
 
@@ -816,3 +824,23 @@ When a host adds a vehicle, they should provide:
 - `legalDocuments`: URL to uploaded legal documents (registration, insurance, etc.)
 
 The vehicle will be created with `approvalStatus: "pending"` and won't be visible to customers until an admin approves it.
+
+---
+
+## Email Notifications
+
+The admin system automatically sends email notifications to users when their host applications or vehicle listings are approved or rejected.
+
+### Host Approval Notifications
+- **Approval Email**: Sent when a host application is approved, containing congratulations and next steps
+- **Rejection Email**: Sent when a host application is rejected, including the specific rejection reason and guidance for re-submission
+
+### Vehicle Approval Notifications
+- **Approval Email**: Sent when a vehicle listing is approved, confirming the vehicle is now live and available for bookings
+- **Rejection Email**: Sent when a vehicle listing is rejected, including the rejection reason and instructions for updating the listing
+
+### Email Features
+- **Professional Templates**: All emails use branded HTML templates with clear, actionable content
+- **Reason Inclusion**: Rejection emails always include the specific reason provided by the admin
+- **Error Handling**: Email delivery failures don't affect the approval/rejection process
+- **Asynchronous**: Emails are sent in the background for optimal performance
