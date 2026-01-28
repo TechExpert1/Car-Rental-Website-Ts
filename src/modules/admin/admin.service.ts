@@ -676,6 +676,92 @@ export const rejectVehicle = async (vehicleId: string, reason: string) => {
     };
 };
 
+/**
+ * Delete vehicle
+ */
+export const deleteVehicle = async (vehicleId: string) => {
+    const vehicle = await Vehicle.findById(vehicleId).populate('host');
+
+    if (!vehicle) {
+        throw new Error("Vehicle not found");
+    }
+
+    // Check if vehicle has any active bookings
+    const activeBookings = await Booking.countDocuments({
+        vehicle: vehicleId,
+        bookingStatus: { $in: ["in-progress", "active"] }
+    });
+
+    if (activeBookings > 0) {
+        throw new Error("Cannot delete vehicle with active bookings. Cancel all active bookings first.");
+    }
+
+    // Get vehicle details before deletion for response
+    const vehicleDetails = {
+        id: vehicle._id,
+        name: vehicle.name,
+        host: vehicle.host
+    };
+
+    // Delete the vehicle
+    await Vehicle.findByIdAndDelete(vehicleId);
+
+    // Send notification email to host
+    try {
+        const host = vehicle.host as any;
+        if (host?.email) {
+            const emailHtml = `
+                <div style="font-family: Arial, sans-serif; background:#f9f9f9; padding:20px;">
+                    <div style="max-width:600px; margin:auto; background:#fff; padding:30px; border-radius:12px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+                        <div style="text-align:center; margin-bottom:20px;">
+                            <h1 style="color:#dc3545; margin:0;">🗑️ Vehicle Listing Removed</h1>
+                        </div>
+                        <p style="font-size:16px; color:#333;">Hi ${host.name || host.username || 'there'},</p>
+                        <p style="font-size:16px; color:#333;">We wanted to inform you that your vehicle listing has been removed from our platform by an administrator.</p>
+
+                        <div style="background:#fff3cd; padding:20px; border-radius:8px; margin:20px 0; border-left: 4px solid #ffc107;">
+                            <h3 style="color:#856404; margin-top:0;">🚗 Removed Vehicle</h3>
+                            <p style="color:#333; font-size:14px; margin:0;"><strong>${vehicle.name}</strong></p>
+                        </div>
+
+                        <div style="background:#f8f9fa; padding:20px; border-radius:8px; margin:20px 0;">
+                            <h3 style="color:#2976BA; margin-top:0;">ℹ️ Important Information</h3>
+                            <ul style="color:#333; font-size:14px;">
+                                <li>If you believe this was done in error, please contact support</li>
+                                <li>You can re-list your vehicle if it meets our requirements</li>
+                                <li>Check your account for any related notifications</li>
+                            </ul>
+                        </div>
+
+                        <p style="font-size:14px; color:#666;">If you have any questions about this action, please don't hesitate to contact our support team.</p>
+
+                        <div style="text-align:center; margin-top:30px;">
+                            <p style="font-size:12px; color:#999;">Thank you for your understanding.</p>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            await transporter.sendMail({
+                from: process.env.EMAIL_USER,
+                to: host.email,
+                subject: `🗑️ Vehicle Listing Removed: ${vehicle.name}`,
+                html: emailHtml,
+            });
+            console.log(`📨 Vehicle deletion notification sent to ${host.email} for vehicle ${vehicle.name}`);
+        }
+    } catch (emailError) {
+        console.error('Failed to send vehicle deletion email:', emailError);
+        // Don't fail the deletion if email fails
+    }
+
+    return {
+        success: true,
+        message: "Vehicle deleted successfully",
+        vehicle: vehicleDetails,
+    };
+};
+
 // ========================
 // Booking & Payment Management
 // ========================

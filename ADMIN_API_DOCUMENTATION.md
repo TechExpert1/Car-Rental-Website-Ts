@@ -631,6 +631,35 @@ Reject a pending vehicle. An email notification will be sent to the vehicle owne
 
 ---
 
+### 6. Delete Vehicle
+**DELETE** `/admin/vehicles/:vehicleId`
+
+Delete a vehicle from the platform. Cannot delete vehicles with active bookings.
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Vehicle deleted successfully",
+  "vehicle": {
+    "id": "vehicle_id",
+    "name": "Toyota Camry",
+    "host": {
+      "name": "Host Name",
+      "email": "host@example.com"
+    }
+  }
+}
+```
+
+**Email Notification:** A notification email is sent to the host informing them that their vehicle listing has been removed.
+
+**Error Cases:**
+- `400`: Vehicle has active bookings (cannot be deleted)
+- `404`: Vehicle not found
+
+---
+
 ## Booking & Payment Management
 
 ### 1. Get All Bookings

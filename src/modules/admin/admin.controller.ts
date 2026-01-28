@@ -335,6 +335,23 @@ export const rejectVehicle = async (
     }
 };
 
+/**
+ * Delete vehicle
+ */
+export const deleteVehicle = async (
+    req: AuthRequest,
+    res: Response
+): Promise<void> => {
+    try {
+        const { vehicleId } = req.params;
+        const result = await adminService.deleteVehicle(vehicleId);
+        res.status(200).json(result);
+    } catch (error: any) {
+        console.error("Delete vehicle error:", error.message);
+        res.status(400).json({ error: error.message });
+    }
+};
+
 // ========================
 // Booking & Payment Management
 // ========================

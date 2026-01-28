@@ -16,6 +16,7 @@ import {
     getVehicleCount,
     approveVehicle,
     rejectVehicle,
+    deleteVehicle,
     getBookings,
     getBookingStats,
     getPlatformStats,
@@ -73,6 +74,7 @@ router.get("/vehicles/pending", adminAuth, getPendingVehicles);
 router.get("/vehicles/count", adminAuth, getVehicleCount);
 router.post("/vehicles/:vehicleId/approve", adminAuth, approveVehicle);
 router.post("/vehicles/:vehicleId/reject", adminAuth, rejectVehicle);
+router.delete("/vehicles/:vehicleId", adminAuth, deleteVehicle);
 
 // ========================
 // Booking & Payment Management Routes
